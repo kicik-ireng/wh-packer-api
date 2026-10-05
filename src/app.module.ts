@@ -25,6 +25,7 @@ import { ScheduleCustomerModule } from './schedule-customer/schedule-customer.mo
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { MonthlyRekapModule } from './monthly/monthly-rekap.module';
+import { StockOpnameModule } from './stock-opname/stock-opname.module';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -49,6 +50,7 @@ import { MonthlyRekapModule } from './monthly/monthly-rekap.module';
     ScheduleTruckModule,
     ScheduleCustomerModule,
     MonthlyRekapModule,
+    StockOpnameModule,
   ],
   controllers: [AppController],
   // providers: [AppService,TaskService],

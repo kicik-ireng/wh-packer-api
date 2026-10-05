@@ -177,6 +177,7 @@ model PartDatabase2r {
   packingEntries PackingEntry[]
   stocks         Stock[]
   deliveryItems  DeliveryItem[] @relation("Delivery2r")
+  stockOpnames   StockOpname[]
 
   @@unique([assyNo16, oeNo])
 }
@@ -195,6 +196,7 @@ model PartDatabase4r {
   createdAt      DateTime       @default(now())
   packingEntries PackingEntry[]
   stocks         Stock[]
+  stockOpnames   StockOpname[]
 
   deliveryItems DeliveryItem[] @relation("Delivery4r")
 
@@ -214,6 +216,25 @@ model Stock {
   createdAt  DateTime @default(now())
 
   @@unique([part2rId, part4rId])
+}
+
+model StockOpname {
+  id          Int      @id @default(autoincrement())
+  opnameDate  DateTime @default(now())
+
+  part2rId    Int?
+  part2r      PartDatabase2r? @relation(fields: [part2rId], references: [id])
+  part4rId    Int?
+  part4r      PartDatabase4r? @relation(fields: [part4rId], references: [id])
+
+  qtySystem   Int      @default(0)
+  qtyActual   Int      @default(0)
+  keterangan  String?
+  pic         String?
+  status      Status   @default(PENDING)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Driver {
