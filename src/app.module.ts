@@ -26,6 +26,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 import { MonthlyRekapModule } from './monthly/monthly-rekap.module';
 import { StockOpnameModule } from './stock-opname/stock-opname.module';
+import { StockTransactionModule } from './stock-transaction/stock-transaction.module';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
@@ -51,6 +52,7 @@ import { StockOpnameModule } from './stock-opname/stock-opname.module';
     ScheduleCustomerModule,
     MonthlyRekapModule,
     StockOpnameModule,
+    StockTransactionModule,
   ],
   controllers: [AppController],
   // providers: [AppService,TaskService],

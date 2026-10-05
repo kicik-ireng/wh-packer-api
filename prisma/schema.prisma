@@ -178,6 +178,7 @@ model PartDatabase2r {
   stocks         Stock[]
   deliveryItems  DeliveryItem[] @relation("Delivery2r")
   stockOpnames   StockOpname[]
+  stockTransactions StockTransaction[]
 
   @@unique([assyNo16, oeNo])
 }
@@ -197,6 +198,7 @@ model PartDatabase4r {
   packingEntries PackingEntry[]
   stocks         Stock[]
   stockOpnames   StockOpname[]
+  stockTransactions StockTransaction[]
 
   deliveryItems DeliveryItem[] @relation("Delivery4r")
 
@@ -317,4 +319,24 @@ model ScheduleCustomer {
   scheduleTruckId Int
   customer        Customer      @relation(fields: [customerId], references: [id])
   customerId      Int
+}
+
+model StockTransaction {
+  id          Int      @id @default(autoincrement())
+  
+  part2rId    Int?
+  part2r      PartDatabase2r? @relation(fields: [part2rId], references: [id])
+  part4rId    Int?
+  part4r      PartDatabase4r? @relation(fields: [part4rId], references: [id])
+  
+  type        String   // "IN", "OUT", "ADJUSTMENT"
+  qtyBefore   Int
+  qtyChange   Int
+  qtyAfter    Int
+  
+  pic         String?
+  reference   String?  // e.g. PCS261001009, PR ID, Delivery DO, etc.
+  description String?
+  
+  createdAt   DateTime @default(now())
 }
