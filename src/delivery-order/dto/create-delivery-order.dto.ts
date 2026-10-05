@@ -1,27 +1,3 @@
-//   IsArray,
-//   IsInt,
-//   IsNotEmpty,
-//   IsOptional,
-//   IsString,
-//   ValidateNested,
-// } from "class-validator";
-
-//   part2rId?: number;
-
-//   part4rId?: number;
-
-//   qtyDelivered: number;
-
-//   noDo: string;
-
-//   driverId: number;
-
-//   customerId?: number;
-
-//   date?: Date;
-
-//   items: DeliveryItemDto[];
-
 import {
   IsArray,
   IsDateString,

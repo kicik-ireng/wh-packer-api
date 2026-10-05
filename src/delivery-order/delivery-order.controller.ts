@@ -1,33 +1,3 @@
-//   Controller,
-//   Get,
-//   Post,
-//   Body,
-//   Param,
-//   Put,
-//   Delete,
-//   Header,
-//   Query,
-//   Res,
-// } from '@nestjs/common';
-
-//   [x: string]: any;
-
-//     return this.service.create(dto);
-
-//     return this.service.findAll();
-
-//     return this.service.findOne(+id);
-
-//     return this.service.update(+id, dto);
-
-//     return this.service.remove(+id);
-
-//     return this.service.exportToExcelByDate(date, type, res);
-
-//   updateDeliveryOrder(
-
-//     return this.service.update(+id, dto);
-
 import {
   Controller,
   Get,
@@ -52,7 +22,7 @@ import { Response } from 'express';
 @Controller('delivery-order')
 export class DeliveryOrderController {
   [x: string]: any;
-  constructor(private readonly service: DeliveryOrderService) {}
+  constructor(private readonly service: DeliveryOrderService) { }
 
   @Post()
   create(@Body() dto: CreateDeliveryOrderDto) {
