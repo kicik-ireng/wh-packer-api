@@ -1,256 +1,3 @@
-// // This is your Prisma schema file.
-// // Learn more: https://pris.ly/d/prisma-schema
-
-// generator client {
-//   provider = "prisma-client-js"
-// }
-
-// datasource db {
-//   provider = "mysql"
-//   url      = env("DATABASE_URL")
-// }
-
-// enum Status {
-//   PENDING
-//   APPROVED
-//   REJECTED
-// }
-
-// model Admin {
-//   id        Int      @id @default(autoincrement())
-//   username  String   @unique
-//   password  String
-//   createdAt DateTime @default(now())
-// }
-
-// model Manpower {
-//   id   Int    @id @default(autoincrement())
-//   nik  String @unique
-//   name String
-
-//   packingReportsAsPIC1 PackingReport[] @relation("PIC1")
-//   packingReportsAsPIC2 PackingReport[] @relation("PIC2")
-//   packingReportsAsPIC3 PackingReport[] @relation("PIC3")
-
-//   entriesAsPIC1 PackingEntry[] @relation("EntryPIC1")
-//   entriesAsPIC2 PackingEntry[] @relation("EntryPIC2")
-//   entriesAsPIC3 PackingEntry[] @relation("EntryPIC3")
-// }
-
-// model PackingReport {
-//   id             Int      @id @default(autoincrement())
-//   tanggalPacking DateTime
-//   lineNo         String
-//   pic1Id         Int?
-//   pic2Id         Int?
-//   pic3Id         Int?
-
-//   pic1 Manpower? @relation("PIC1", fields: [pic1Id], references: [id])
-//   pic2 Manpower? @relation("PIC2", fields: [pic2Id], references: [id])
-//   pic3 Manpower? @relation("PIC3", fields: [pic3Id], references: [id])
-
-//   keterangan String?
-//   qty4R      Int?
-//   qty2R      Int?
-//   status     Status         @default(PENDING)
-//   entries    PackingEntry[]
-
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
-
-// model PackingEntry {
-//   id              Int           @id @default(autoincrement())
-//   packingReportId Int
-//   packingReport   PackingReport @relation(fields: [packingReportId], references: [id])
-
-//   no                  Int
-//   jamMulai            String
-//   jamSelesai          String
-//   menitPacking        Int
-//   packingReqNo        String
-//   explannerNo         String
-//   customerPartNo      String
-//   qtyPlan             Int
-//   qtyActualPacking    Int
-//   balancePlanVsActual Int
-//   type                String
-//   status              Status      @default(PENDING)
-//   Incoming4rId        Int?
-//   Incoming4r          Incoming4r? @relation("Incoming4REntries", fields: [Incoming4rId], references: [id])
-
-//   Incoming2rId Int?
-//   Incoming2r   Incoming2r? @relation("Incoming2REntries", fields: [Incoming2rId], references: [id])
-
-//   part2rId Int?
-//   part2r   PartDatabase2r? @relation(fields: [part2rId], references: [id])
-
-//   part4rId Int?
-//   part4r   PartDatabase4r? @relation(fields: [part4rId], references: [id])
-
-//   pic1Id Int?
-//   pic1   Manpower? @relation("EntryPIC1", fields: [pic1Id], references: [id])
-
-//   pic2Id Int?
-//   pic2   Manpower? @relation("EntryPIC2", fields: [pic2Id], references: [id])
-
-//   pic3Id Int?
-//   pic3   Manpower? @relation("EntryPIC3", fields: [pic3Id], references: [id])
-
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
-
-// model Incoming4r {
-//   id         Int      @id @default(autoincrement())
-//   prId       String   @unique
-//   date       String
-//   cust       String
-//   seg        String
-//   assyNo16   String
-//   assyNo10   String
-//   oeNo       String
-//   model      String
-//   kpp        String
-//   kppNp      String
-//   qtyPlan    Int
-//   qtyActual  Int?     @default(0)
-//   status     Status   @default(PENDING)
-//   uploadedAt DateTime @default(now())
-//   createdAt  DateTime @default(now())
-
-//   packingEntries PackingEntry[] @relation("Incoming4REntries")
-// }
-
-// model Incoming2r {
-//   id          Int    @id @default(autoincrement())
-//   prId        String @unique
-//   date        String
-//   cust        String
-//   segment     String
-//   assyNo16    String
-//   assyNo10    String
-//   oeNo        String
-//   model       String
-//   EMIpartname String
-//   kpp         String
-//   qtyPlan     Int
-//   qtyActual   Int?   @default(0)
-//   status      Status @default(PENDING)
-
-//   createdAt DateTime @default(now())
-
-//   packingEntries PackingEntry[] @relation("Incoming2REntries")
-// }
-
-// model ProductionProblemReport {
-//   id          Int      @id @default(autoincrement())
-//   no          Int
-//   jamMulai    DateTime
-//   jamSelesai  DateTime
-//   menit       Int
-//   problemItem String
-//   pic         String
-//   slOrDl      String
-//   status      String
-//   keterangan  String?
-
-//   createdAt DateTime @default(now())
-// }
-
-// model PartDatabase2r {
-//   id             Int            @id @default(autoincrement())
-//   codeNo         String         @unique
-//   customer       String
-//   segment        String
-//   assyNo16       String
-//   assyNo10       String
-//   oeNo           String
-//   model          String
-//   emiPartName    String
-//   kpp            String
-//   createdAt      DateTime       @default(now())
-//   packingEntries PackingEntry[] // optional
-//   stocks         Stock[]
-//   deliveryItems  DeliveryItem[] @relation("Delivery2r")
-
-//   @@unique([assyNo16, oeNo])
-// }
-
-// model PartDatabase4r {
-//   id             Int            @id @default(autoincrement())
-//   codeNo         String         @unique
-//   customer       String
-//   segment        String
-//   assyNo16       String
-//   assyNo10       String
-//   oeNo           String
-//   model          String
-//   kpp            String
-//   kppNp          String
-//   createdAt      DateTime       @default(now())
-//   packingEntries PackingEntry[] // optional
-//   stocks         Stock[]
-//   deliveryItems  DeliveryItem[] @relation("Delivery4r")
-
-//   @@unique([assyNo16, segment, oeNo])
-// }
-
-// model Stock {
-//   id       Int             @id @default(autoincrement())
-//   part2rId Int?
-//   part2r   PartDatabase2r? @relation(fields: [part2rId], references: [id])
-//   part4rId Int?
-//   part4r   PartDatabase4r? @relation(fields: [part4rId], references: [id])
-
-//   totalStock Int      @default(0)
-//   rack       String?
-//   updatedAt  DateTime @updatedAt
-//   createdAt  DateTime @default(now())
-
-//   @@unique([part2rId, part4rId])
-// }
-
-// model Driver {
-//   id   Int    @id @default(autoincrement())
-//   name String
-
-//   deliveryOrders DeliveryOrder[]
-// }
-
-// model DeliveryOrder {
-//   id         Int            @id @default(autoincrement())
-//   noDo       String         @unique
-//   driverId   Int
-//   driver     Driver         @relation(fields: [driverId], references: [id])
-//   customerId Int?
-//   customer   Customer?      @relation(fields: [customerId], references: [id])
-//   date       DateTime       @default(now())
-//   items      DeliveryItem[]
-//   createdAt  DateTime       @default(now())
-// }
-
-// model DeliveryItem {
-//   id              Int           @id @default(autoincrement())
-//   deliveryOrderId Int
-//   deliveryOrder   DeliveryOrder @relation(fields: [deliveryOrderId], references: [id])
-
-//   part2rId Int?
-//   part2r   PartDatabase2r? @relation("Delivery2r", fields: [part2rId], references: [id])
-
-//   part4rId Int?
-//   part4r   PartDatabase4r? @relation("Delivery4r", fields: [part4rId], references: [id])
-
-//   qtyDelivered Int
-// }
-
-// model Customer {
-//   id        Int             @id @default(autoincrement())
-//   name      String          @unique
-//   address   String?
-//   orders    DeliveryOrder[]
-//   createdAt DateTime        @default(now())
-// }
 // This is your Prisma schema file.
 // Learn more: https://pris.ly/d/prisma-schema
 
@@ -310,6 +57,8 @@ model PackingReport {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([tanggalPacking])
 }
 
 model PackingEntry {
@@ -352,6 +101,8 @@ model PackingEntry {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([packingReqNo, type])
 }
 
 model Incoming4r {
@@ -470,46 +221,46 @@ model Driver {
   name String
 
   deliveryOrders DeliveryOrder[]
-  scheduleTruck ScheduleTruck[]
+  scheduleTruck  ScheduleTruck[]
 }
 
 model DeliveryOrder {
-  id         Int            @id @default(autoincrement())
-  noDo       String         @unique
-  driverId   Int
-  driver     Driver         @relation(fields: [driverId], references: [id])
-  scheduleId Int?
-  schedule   ScheduleTruck?  @relation(fields: [scheduleId], references: [id])
-  date       DateTime       @default(now())
-  customerId Int?
-  customer   Customer?      @relation(fields: [customerId], references: [id])
-  items      DeliveryItem[]
-  createdAt  DateTime       @default(now())
-  deliverytime DateTime?       
-  
+  id           Int            @id @default(autoincrement())
+  noDo         String         @unique
+  driverId     Int
+  driver       Driver         @relation(fields: [driverId], references: [id])
+  scheduleId   Int?
+  schedule     ScheduleTruck? @relation(fields: [scheduleId], references: [id])
+  date         DateTime       @default(now())
+  customerId   Int?
+  customer     Customer?      @relation(fields: [customerId], references: [id])
+  items        DeliveryItem[]
+  createdAt    DateTime       @default(now())
+  deliverytime DateTime?
+
+  @@index([date])
 }
 
 model Truck {
-  id         Int            @id @default(autoincrement())
-  noPol     String         @unique
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  color      String
+  id            Int             @id @default(autoincrement())
+  noPol         String          @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  color         String
   scheduleTruck ScheduleTruck[]
- 
 }
 
 model ScheduleTruck {
-  id         Int            @id @default(autoincrement())
-  truckId    Int
-  truck      Truck          @relation(fields: [truckId], references: [id])
-  scheduleAt DateTime
-  driverId   Int
-  driver     Driver         @relation(fields: [driverId], references: [id])
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  cycle         Int?
-  customers  ScheduleCustomer[]
+  id             Int                @id @default(autoincrement())
+  truckId        Int
+  truck          Truck              @relation(fields: [truckId], references: [id])
+  scheduleAt     DateTime
+  driverId       Int
+  driver         Driver             @relation(fields: [driverId], references: [id])
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  cycle          Int?
+  customers      ScheduleCustomer[]
   deliveryOrders DeliveryOrder[]
 }
 
@@ -531,18 +282,18 @@ model DeliveryItem {
 }
 
 model Customer {
-  id        Int             @id @default(autoincrement())
-  name      String          @unique
+  id        Int                @id @default(autoincrement())
+  name      String             @unique
   address   String?
   orders    DeliveryOrder[]
-  createdAt DateTime        @default(now())
+  createdAt DateTime           @default(now())
   schedules ScheduleCustomer[]
 }
 
 model ScheduleCustomer {
-  id            Int            @id @default(autoincrement())
-  scheduleTruck ScheduleTruck  @relation(fields: [scheduleTruckId], references: [id])
+  id              Int           @id @default(autoincrement())
+  scheduleTruck   ScheduleTruck @relation(fields: [scheduleTruckId], references: [id])
   scheduleTruckId Int
-  customer       Customer      @relation(fields: [customerId], references: [id])
-  customerId     Int
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  customerId      Int
 }

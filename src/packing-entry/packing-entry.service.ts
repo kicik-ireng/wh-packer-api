@@ -814,7 +814,8 @@ export class PackingEntryService {
     });
 
     // Update stock quantity
-    const qtyDiff = (updated.qtyActualPacking ?? 0) - (currentEntry.qtyActualPacking ?? 0);
+    const qtyDiff =
+      (updated.qtyActualPacking ?? 0) - (currentEntry.qtyActualPacking ?? 0);
     await this.updateStock(updated, qtyDiff);
 
     // Check all entries with same PR and type
