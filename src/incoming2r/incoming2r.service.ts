@@ -17,7 +17,7 @@ export class Incoming2rService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly excelService: ExcelService,
-  ) {}
+  ) { }
 
   async getFilteredPackingReqNo() {
     try {
@@ -37,7 +37,7 @@ export class Incoming2rService {
     try {
       // Get packing-report
       const packingReportRes = await fetch(
-        'http://localhost:3001/packing-report',
+        'http://10.10.10.5:3001/packing-report',
       );
       if (!packingReportRes.ok) {
         throw new Error(

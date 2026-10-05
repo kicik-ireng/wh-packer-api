@@ -20,17 +20,17 @@ async function bootstrap() {
   //   origin: '*', // Jika tidak butuh credential (cookies)
   //   // Jika perlu credential, gunakan origin spesifik dan tambahkan credentials: true
   //   // Contoh:
-  //   // origin: 'http://localhost:3000',
+  //   // origin: 'http://10.10.10.5:3000',
   //   // credentials: true,
   // });
 
   //   // origin: true,
-  //   origin: 'http://localhost:3000',
+  //   origin: 'http://10.10.10.5:3000',
   //   credentials: true,
   // });
 
   app.enableCors({
-    origin: ['http://localhost:5000'],
+    origin: ['http://10.10.10.5:5000'],
     credentials: true,
   });
 
