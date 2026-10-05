@@ -274,4 +274,93 @@ export class StockService {
       }
     });
   }
+
+  // Upload 2R
+  async uploadStock2r(file: Express.Multer.File) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer as any);
+    const sheet = workbook.worksheets[0];
+    
+    let updated = 0;
+    const rows = sheet.getRows(3, sheet.rowCount) || [];
+
+    for (const row of rows) {
+      const assyNo16 = row.getCell(4).value?.toString()?.trim();
+      const oeNo = row.getCell(5).value?.toString()?.trim();
+      const stockVal = row.getCell(8).value;
+      const totalStock = parseInt(stockVal?.toString() || '0', 10);
+      const rackVal = row.getCell(9).value?.toString()?.trim();
+      const rack = rackVal && rackVal !== '-' ? rackVal : null;
+
+      if (!assyNo16 || !oeNo) continue;
+
+      const part = await this.prisma.partDatabase2r.findFirst({
+        where: { assyNo16, oeNo },
+      });
+
+      if (part) {
+        const existingStock = await this.prisma.stock.findFirst({
+          where: { part2rId: part.id },
+        });
+
+        if (existingStock) {
+          await this.prisma.stock.update({
+            where: { id: existingStock.id },
+            data: { totalStock: Math.max(0, totalStock), rack },
+          });
+        } else {
+          await this.prisma.stock.create({
+            data: { part2rId: part.id, totalStock: Math.max(0, totalStock), rack },
+          });
+        }
+        updated++;
+      }
+    }
+    return { message: `Berhasil update ${updated} stock 2R` };
+  }
+
+  // Upload 4R
+  async uploadStock4r(file: Express.Multer.File) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.buffer as any);
+    const sheet = workbook.worksheets[0];
+    
+    let updated = 0;
+    const rows = sheet.getRows(3, sheet.rowCount) || [];
+
+    for (const row of rows) {
+      const segment = row.getCell(3).value?.toString()?.trim();
+      const assyNo16 = row.getCell(4).value?.toString()?.trim();
+      const oeNo = row.getCell(5).value?.toString()?.trim();
+      const stockVal = row.getCell(8).value;
+      const totalStock = parseInt(stockVal?.toString() || '0', 10);
+      const rackVal = row.getCell(9).value?.toString()?.trim();
+      const rack = rackVal && rackVal !== '-' ? rackVal : null;
+
+      if (!segment || !assyNo16 || !oeNo) continue;
+
+      const part = await this.prisma.partDatabase4r.findFirst({
+        where: { segment, assyNo16, oeNo },
+      });
+
+      if (part) {
+        const existingStock = await this.prisma.stock.findFirst({
+          where: { part4rId: part.id },
+        });
+
+        if (existingStock) {
+          await this.prisma.stock.update({
+            where: { id: existingStock.id },
+            data: { totalStock: Math.max(0, totalStock), rack },
+          });
+        } else {
+          await this.prisma.stock.create({
+            data: { part4rId: part.id, totalStock: Math.max(0, totalStock), rack },
+          });
+        }
+        updated++;
+      }
+    }
+    return { message: `Berhasil update ${updated} stock 4R` };
+  }
 }

@@ -30,7 +30,7 @@ async function main() {
 
     const totalIn = incomings._sum.qtyActualPacking || 0;
     const totalOut = outgoings._sum.qtyDelivered || 0;
-    const currentStock = totalIn - totalOut;
+    const currentStock = Math.max(0, totalIn - totalOut);
 
     if (totalIn > 0 || totalOut > 0) {
       await prisma.stock.create({
@@ -57,7 +57,7 @@ async function main() {
 
     const totalIn = incomings._sum.qtyActualPacking || 0;
     const totalOut = outgoings._sum.qtyDelivered || 0;
-    const currentStock = totalIn - totalOut;
+    const currentStock = Math.max(0, totalIn - totalOut);
 
     if (totalIn > 0 || totalOut > 0) {
       await prisma.stock.create({

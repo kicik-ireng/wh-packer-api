@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { StockService } from './stock.service';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { Response } from 'express';
@@ -50,5 +51,17 @@ export class StockController {
     @Body('newQty') newQty: number,
   ) {
     return this.stockService.updateStockPerPart4R(partId, newQty);
+  }
+
+  @Post('upload/2r')
+  @UseInterceptors(FileInterceptor('file'))
+  async upload2r(@UploadedFile() file: Express.Multer.File) {
+    return this.stockService.uploadStock2r(file);
+  }
+
+  @Post('upload/4r')
+  @UseInterceptors(FileInterceptor('file'))
+  async upload4r(@UploadedFile() file: Express.Multer.File) {
+    return this.stockService.uploadStock4r(file);
   }
 }
