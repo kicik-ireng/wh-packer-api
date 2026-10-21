@@ -23,6 +23,54 @@ model Admin {
   createdAt DateTime @default(now())
 }
 
+model Role {
+  Id          Int          @id @default(autoincrement())
+  RoleName    String       @unique
+  Description String?
+  IsActive    Boolean      @default(true)
+  CreatedAt   DateTime     @default(now())
+  CreatedBy   String
+  UpdatedAt   DateTime     @updatedAt
+  UpdatedBy   String
+  Users       AppUser[]
+  Permissions Permission[]
+
+  @@index([IsActive])
+}
+
+model Permission {
+  Id          Int      @id @default(autoincrement())
+  Action      String   @unique
+  Description String?
+  CreatedAt   DateTime @default(now())
+  CreatedBy   String
+  UpdatedAt   DateTime @updatedAt
+  UpdatedBy   String
+  Roles       Role[]
+
+  @@index([Action])
+}
+
+model AppUser {
+  Id          String    @id @default(uuid())
+  SsoObjectId String    @unique
+  UserName    String
+  Name        String
+  Email       String?   @unique
+  PhoneNumber String?
+  RoleId      Int?
+  Role        Role?     @relation(fields: [RoleId], references: [Id], onDelete: SetNull)
+  IsActive    Boolean   @default(true)
+  LastLogin   DateTime?
+  CreatedAt   DateTime  @default(now())
+  CreatedBy   String
+  UpdatedAt   DateTime  @updatedAt
+  UpdatedBy   String
+
+  @@index([RoleId])
+  @@index([IsActive])
+}
+
 model Manpower {
   id   Int    @id @default(autoincrement())
   nik  String @unique

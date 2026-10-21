@@ -7,15 +7,14 @@ import {
   Patch,
   Delete,
   ParseIntPipe,
-  UseGuards,
   Res,
   Query,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { Permissions } from '@vuteq/sso-client-nest';
 import { PackingReportService } from './packing-report.service';
 import { CreatePackingReportDto } from './dto/create-packing-report.dto';
 import { UpdatePackingReportDto } from './dto/update-packing-report.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Status } from '@prisma/client';
 
 @Controller('packing-report')
@@ -23,25 +22,27 @@ export class PackingReportController {
   constructor(private readonly packingReportService: PackingReportService) {}
 
   @Post()
+  @Permissions('PACKER.PACKING_REPORT_CREATE')
   create(@Body() createPackingReportDto: CreatePackingReportDto) {
     return this.packingReportService.create(createPackingReportDto);
   }
 
   @Get()
+  @Permissions('PACKER.PACKING_REPORT_READ')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.packingReportService.findAll(pageNum, limitNum);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get(':id')
+  @Permissions('PACKER.PACKING_REPORT_READ')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.packingReportService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Patch(':id')
+  @Permissions('PACKER.PACKING_REPORT_UPDATE')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePackingReportDto: UpdatePackingReportDto,
@@ -49,8 +50,8 @@ export class PackingReportController {
     return this.packingReportService.update(id, updatePackingReportDto);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Patch('approve/:id')
+  @Permissions('PACKER.PACKING_REPORT_UPDATE')
   approve(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePackingReportDto: { status: Status },
@@ -58,15 +59,14 @@ export class PackingReportController {
     return this.packingReportService.approve(id, updatePackingReportDto);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Delete(':id')
+  @Permissions('PACKER.PACKING_REPORT_DELETE')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.packingReportService.remove(id);
   }
 
-  // Export Excel endpoint
-  @UseGuards(JwtAuthGuard)
   @Get('export/:id')
+  @Permissions('PACKER.PACKING_REPORT_READ')
   async exportReport(
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
