@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Res, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { StockService } from './stock.service';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { Response } from 'express';
@@ -9,14 +9,14 @@ import { Response } from 'express';
 export class StockController {
   constructor(private readonly stockService: StockService) {}
 
+  @Public()
   @Get('2r')
-  @Permissions('PACKER.STOCK_READ')
   findStock2r() {
     return this.stockService.findStock2r();
   }
 
+  @Public()
   @Get('4r')
-  @Permissions('PACKER.STOCK_READ')
   findStock4r() {
     return this.stockService.findStock4r();
   }

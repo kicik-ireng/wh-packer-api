@@ -8,7 +8,7 @@ import {
   Param,
   Delete,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { PartDatabase4rService } from './part-database-4r.service';
 import { CreatePartDatabase4rDto } from './dto/create-part-database-4r.dto';
 import { UpdatePartDatabase4rDto } from './dto/update-part-database-4r.dto';
@@ -29,14 +29,14 @@ export class PartDatabase4rController {
     return this.service.createMany(dtos);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.PART4R_READ')
   findAll() {
     return this.service.findAll();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.PART4R_READ')
   findOne(@Param('id') id: string) {
     return this.service.findOne(+id);
   }

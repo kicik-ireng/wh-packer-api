@@ -32,6 +32,10 @@ import { ScheduleCustomerModule } from './schedule-customer/schedule-customer.mo
 import { MonthlyRekapModule } from './monthly/monthly-rekap.module';
 import { StockOpnameModule } from './stock-opname/stock-opname.module';
 import { StockTransactionModule } from './stock-transaction/stock-transaction.module';
+import { DandoriScheduleModule } from './dandori-schedule/dandori-schedule.module';
+
+import { APP_GUARD } from '@nestjs/core';
+import { AppAuthGuard } from './auth/guards/app-auth.guard';
 
 @Module({
   imports: [
@@ -75,9 +79,17 @@ import { StockTransactionModule } from './stock-transaction/stock-transaction.mo
     MonthlyRekapModule,
     StockOpnameModule,
     StockTransactionModule,
+    DandoriScheduleModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [
+    AppService,
+    PrismaService,
+    {
+      provide: APP_GUARD,
+      useClass: AppAuthGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

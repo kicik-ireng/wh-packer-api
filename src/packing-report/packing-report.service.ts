@@ -30,6 +30,26 @@ export class PackingReportService {
 
     const tanggal = new Date(tanggalPacking);
 
+    // 🔒 WORKFLOW GUARD: MP packing tidak bisa input packing sebelum Dandori mengisi schedule per line
+    const cleanLineNo = lineNo.replace(/[^0-9]/g, '') || lineNo;
+    const startOfDay = new Date(tanggal);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(tanggal);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const activeSchedule = await this.prisma.dandoriPackingSchedule.findFirst({
+      where: {
+        lineNo: cleanLineNo,
+        scheduleDate: { gte: startOfDay, lte: endOfDay },
+      },
+    });
+
+    if (!activeSchedule) {
+      throw new BadRequestException(
+        `Line ${lineNo} belum memiliki Perintah Kerja / Schedule dari Dandori untuk tanggal ${tanggalPacking}. Operator MP belum diizinkan input packing sebelum Dandori mengisi schedule.`,
+      );
+    }
+
     for (const d of entries) {
       const qtyActualNew = parseInt(d.qtyActualPacking?.toString() ?? '0');
       const qtyPlan = parseInt(d.qtyPlan?.toString() ?? '0');
@@ -54,7 +74,6 @@ export class PackingReportService {
         );
       }
     }
-
 
     const formattedEntries = [];
 
@@ -93,10 +112,13 @@ export class PackingReportService {
       });
     }
 
+    const totalInputQty = parseInt(qty2R.toString()) + parseInt(qty4R.toString());
+
     const entry = await this.prisma.packingReport.create({
       data: {
         tanggalPacking: tanggal,
-        lineNo,
+        lineNo: cleanLineNo,
+        dandoriSchedule: { connect: { id: activeSchedule.id } },
         keterangan,
         qty2R: parseInt(qty2R.toString()),
         qty4R: parseInt(qty4R.toString()),
@@ -109,9 +131,21 @@ export class PackingReportService {
       },
     });
 
+    // Update real-time progress di Dandori Schedule
+    const updatedSchedule = await this.prisma.dandoriPackingSchedule.update({
+      where: { id: activeSchedule.id },
+      data: {
+        qtyActual: { increment: totalInputQty },
+        status: activeSchedule.qtyActual + totalInputQty >= activeSchedule.qtyPlan ? 'COMPLETED' : 'IN_PROGRESS',
+      },
+    });
+
     await this.updateStock(entry);
 
-    return entry;
+    return {
+      ...entry,
+      dandoriSchedule: updatedSchedule,
+    };
   }
   private async updateStock(entry: {
     id: number;
@@ -119,6 +153,15 @@ export class PackingReportService {
     qty2R: number | null;
   }) {
     try {
+      const rep = await this.prisma.packingReport.findUnique({
+        where: { id: entry.id },
+        include: { pic1: true, pic2: true, pic3: true },
+      });
+      const picNames =
+        [rep?.pic1?.name, rep?.pic2?.name, rep?.pic3?.name]
+          .filter(Boolean)
+          .join(', ') || 'Operator Packing';
+
       // Find all packing entries for this report
       const packingEntries = await this.prisma.packingEntry.findMany({
         where: {
@@ -132,6 +175,9 @@ export class PackingReportService {
 
       // Process each packing entry
       for (const entriPE of packingEntries) {
+        const qtyActual = entriPE.qtyActualPacking ?? 0;
+        if (qtyActual <= 0) continue;
+
         if (entriPE.type === '4R') {
           const part = await this.prisma.partDatabase4r.findFirst({
             where: {
@@ -148,11 +194,13 @@ export class PackingReportService {
 
           await this.upsertStock({
             part4rId: part.id,
-            quantity: entriPE.qtyActualPacking,
             part2rId: null,
+            quantity: qtyActual,
+            pic: picNames,
+            reference: entriPE.packingReqNo ? `PR-${entriPE.packingReqNo}` : `REPORT-#${entry.id}`,
+            description: `Barang Masuk Packing Line ${rep?.lineNo || '-'} | Explanner: ${entriPE.explannerNo || '-'} | Part No: ${entriPE.customerPartNo || part.assyNo16}`,
           });
         } else if (entriPE.type === '2R') {
-          // FIX: Changed from partDatabase4r to partDatabase2r
           const part = await this.prisma.partDatabase2r.findFirst({
             where: {
               assyNo16: entriPE.Incoming2r?.assyNo16,
@@ -169,8 +217,11 @@ export class PackingReportService {
 
           await this.upsertStock({
             part2rId: part.id,
-            quantity: entriPE.qtyActualPacking,
             part4rId: null,
+            quantity: qtyActual,
+            pic: picNames,
+            reference: entriPE.packingReqNo ? `PR-${entriPE.packingReqNo}` : `REPORT-#${entry.id}`,
+            description: `Barang Masuk Packing Line ${rep?.lineNo || '-'} | Explanner: ${entriPE.explannerNo || '-'} | Part No: ${entriPE.customerPartNo || part.assyNo16}`,
           });
         }
       }
@@ -184,8 +235,11 @@ export class PackingReportService {
     part4rId?: number | null;
     part2rId?: number | null;
     quantity: number;
+    pic?: string | null;
+    reference?: string | null;
+    description?: string | null;
   }) {
-    const { part4rId, part2rId, quantity } = params;
+    const { part4rId, part2rId, quantity, pic, reference, description } = params;
 
     const where = {
       part4rId: part4rId || null,
@@ -196,28 +250,45 @@ export class PackingReportService {
       where,
     });
 
+    const qtyBefore = existingStock?.totalStock || 0;
+    const qtyChange = quantity;
+    const qtyAfter = qtyBefore + qtyChange;
+
     if (existingStock) {
       await this.prisma.stock.update({
         where: { id: existingStock.id },
         data: {
-          totalStock: {
-            increment: quantity,
-          },
+          totalStock: qtyAfter,
           updatedAt: new Date(),
         },
       });
     } else {
       await this.prisma.stock.create({
         data: {
-          part4rId,
-          part2rId,
-          totalStock: quantity,
+          part4rId: part4rId || null,
+          part2rId: part2rId || null,
+          totalStock: qtyAfter,
           rack: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
       });
     }
+
+    // Record Stock Card Transaction
+    await this.prisma.stockTransaction.create({
+      data: {
+        part2rId: part2rId || null,
+        part4rId: part4rId || null,
+        type: 'IN',
+        qtyBefore,
+        qtyChange,
+        qtyAfter,
+        pic: pic || 'Operator Packing',
+        reference: reference || null,
+        description: description || 'Barang Masuk dari Packing',
+      },
+    });
   }
 
   async findAll(page?: number, limit?: number) {

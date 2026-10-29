@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
 import { Permissions } from '@vuteq/sso-client-nest';
 import { StockTransactionService } from './stock-transaction.service';
 import { CreateStockTransactionDto } from './dto/create-stock-transaction.dto';
@@ -6,7 +15,9 @@ import { UpdateStockTransactionDto } from './dto/update-stock-transaction.dto';
 
 @Controller('stock-transaction')
 export class StockTransactionController {
-  constructor(private readonly stockTransactionService: StockTransactionService) {}
+  constructor(
+    private readonly stockTransactionService: StockTransactionService,
+  ) {}
 
   @Post()
   @Permissions('PACKER.TRACEABILITY_READ')
@@ -20,6 +31,16 @@ export class StockTransactionController {
     return this.stockTransactionService.findAll(query);
   }
 
+  @Get('card/:type/:partId')
+  @Permissions('PACKER.TRACEABILITY_READ')
+  getStockCard(
+    @Param('type') type: '2r' | '4r',
+    @Param('partId') partId: string,
+    @Query() query: any,
+  ) {
+    return this.stockTransactionService.getStockCard(type, +partId, query);
+  }
+
   @Get(':id')
   @Permissions('PACKER.TRACEABILITY_READ')
   findOne(@Param('id') id: string) {
@@ -28,7 +49,10 @@ export class StockTransactionController {
 
   @Patch(':id')
   @Permissions('PACKER.TRACEABILITY_READ')
-  update(@Param('id') id: string, @Body() updateStockTransactionDto: UpdateStockTransactionDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateStockTransactionDto: UpdateStockTransactionDto,
+  ) {
     return this.stockTransactionService.update(+id, updateStockTransactionDto);
   }
 

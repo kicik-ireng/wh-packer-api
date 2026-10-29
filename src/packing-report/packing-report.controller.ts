@@ -11,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { PackingReportService } from './packing-report.service';
 import { CreatePackingReportDto } from './dto/create-packing-report.dto';
 import { UpdatePackingReportDto } from './dto/update-packing-report.dto';
@@ -21,22 +21,22 @@ import { Status } from '@prisma/client';
 export class PackingReportController {
   constructor(private readonly packingReportService: PackingReportService) {}
 
+  @Public()
   @Post()
-  @Permissions('PACKER.PACKING_REPORT_CREATE')
   create(@Body() createPackingReportDto: CreatePackingReportDto) {
     return this.packingReportService.create(createPackingReportDto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.PACKING_REPORT_READ')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.packingReportService.findAll(pageNum, limitNum);
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.PACKING_REPORT_READ')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.packingReportService.findOne(id);
   }

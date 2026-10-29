@@ -11,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { Incoming4rService } from './incoming4r.service';
 import { CreateIncoming4rDto } from './dto/create-incoming4r.dto';
 import { UpdateIncoming4rDto } from './dto/update-incoming4r.dto';
@@ -27,16 +27,16 @@ export class Incoming4rController {
     return this.service.create(file);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.INCOMING4R_READ')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.service.findAll(pageNum, limitNum);
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.INCOMING4R_READ')
   findOne(@Param('id') id: string) {
     return this.service.findOne(+id);
   }

@@ -9,7 +9,7 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { PackingEntryService } from './packing-entry.service';
 import { CreatePackingEntryDto } from './dto/create-packing-entry.dto';
 import { UpdatePackingEntryDto } from './dto/update-packing-entry.dto';
@@ -46,16 +46,16 @@ export class PackingEntryController {
     return this.service.create(dto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.PACKING_REPORT_READ')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.service.findAll(pageNum, limitNum);
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.PACKING_REPORT_READ')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);
   }

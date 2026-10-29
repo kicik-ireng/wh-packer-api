@@ -31,8 +31,24 @@ export class AssignRoleDto {
   RoleId?: number | null;
 
   @IsOptional()
+  @IsInt()
+  roleId?: number | null;
+
+  @IsOptional()
+  @IsString()
+  RoleName?: string;
+
+  @IsOptional()
+  @IsString()
+  roleName?: string;
+
+  @IsOptional()
   @IsBoolean()
   IsActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class RoleBodyDto {

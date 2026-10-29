@@ -20,6 +20,12 @@ export class StockOpnameController {
     return this.stockOpnameService.findAll();
   }
 
+  @Get('summary')
+  @Permissions('PACKER.STOCK_OPNAME_READ')
+  getSummary() {
+    return this.stockOpnameService.getSummary();
+  }
+
   @Get(':id')
   @Permissions('PACKER.STOCK_OPNAME_READ')
   findOne(@Param('id') id: string) {

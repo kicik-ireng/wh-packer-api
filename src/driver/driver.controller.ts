@@ -8,7 +8,7 @@ import {
   Put,
   Patch,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { DriverService } from './driver.service';
 import { CreateDriverDto } from './dto/create-driver.dto';
 import { UpdateDriverDto } from './dto/update-driver.dto';
@@ -23,14 +23,14 @@ export class DriverController {
     return this.driverService.create(dto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.DRIVER_READ')
   findAll() {
     return this.driverService.findAll();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.DRIVER_READ')
   findOne(@Param('id') id: string) {
     return this.driverService.findOne(+id);
   }

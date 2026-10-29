@@ -11,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { Incoming2rService } from './incoming2r.service';
 import { UpdateIncoming2rDto } from './dto/update-incoming2r.dto';
 import { CreateIncoming2rDto } from './dto/create-incoming2r.dto';
@@ -27,28 +27,28 @@ export class Incoming2rController {
     return this.service.create(file);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.INCOMING2R_READ')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.service.findAll(pageNum, limitNum);
   }
 
+  @Public()
   @Get('packing-req-no')
-  @Permissions('PACKER.INCOMING2R_READ')
   async getPackingReqNo() {
     return this.service.getFilteredPackingReqNo();
   }
 
+  @Public()
   @Get('update-status')
-  @Permissions('PACKER.INCOMING2R_UPDATE')
   async updateStatus() {
     return this.service.updateIncomingStatusFromPackingReport();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.INCOMING2R_READ')
   findOne(@Param('id') id: string) {
     return this.service.findOne(+id);
   }

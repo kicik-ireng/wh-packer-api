@@ -9,7 +9,7 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { ProductionProblemService } from './production-problem.service';
 import { CreateProductionProblemDto } from './dto/create-production-problem.dto';
 import { UpdateProductionProblemDto } from './dto/update-production-problem.dto';
@@ -20,22 +20,22 @@ export class ProductionProblemController {
     private readonly productionProblemService: ProductionProblemService,
   ) {}
 
+  @Public()
   @Post()
-  @Permissions('PACKER.PRODUCTION_PROBLEM_CREATE')
   create(@Body() createDto: CreateProductionProblemDto) {
     return this.productionProblemService.create(createDto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.PRODUCTION_PROBLEM_READ')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.productionProblemService.findAll(pageNum, limitNum);
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.PRODUCTION_PROBLEM_READ')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.productionProblemService.findOne(id);
   }

@@ -1,6 +1,6 @@
 // V3
 
-import { Global, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Global, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import axios from 'axios';
 
@@ -19,28 +19,29 @@ export class MonthlyRekapService {
     from?: string,
     to?: string,
   ) {
-    let start: Date;
-    let end: Date;
+    try {
+      let start: Date;
+      let end: Date;
 
-    if (from && to) {
-      // Range date
-      start = new Date(from);
-      start.setHours(0, 0, 0, 0);
+      if (from && to) {
+        // Range date
+        start = new Date(from);
+        start.setHours(0, 0, 0, 0);
 
-      end = new Date(to);
-      end.setDate(end.getDate() + 1); // supaya inclusive
-      end.setHours(0, 0, 0, 0);
-    } else if (year && month && day) {
-      // Harian
-      start = new Date(year, month - 1, day, 0, 0, 0);
-      end = new Date(year, month - 1, day + 1, 0, 0, 0);
-    } else if (year && month) {
-      // Bulanan
-      start = new Date(year, month - 1, 1, 0, 0, 0);
-      end = new Date(year, month, 1, 0, 0, 0);
-    } else {
-      throw new Error('Harus isi minimal (year & month) atau (from & to)');
-    }
+        end = new Date(to);
+        end.setDate(end.getDate() + 1); // supaya inclusive
+        end.setHours(0, 0, 0, 0);
+      } else if (year && month && day) {
+        // Harian
+        start = new Date(year, month - 1, day, 0, 0, 0);
+        end = new Date(year, month - 1, day + 1, 0, 0, 0);
+      } else if (year && month) {
+        // Bulanan
+        start = new Date(year, month - 1, 1, 0, 0, 0);
+        end = new Date(year, month, 1, 0, 0, 0);
+      } else {
+        throw new BadRequestException('Harus isi minimal (year & month) atau (from & to)');
+      }
 
     const reports = await this.prisma.packingReport.findMany({
       where: { tanggalPacking: { gte: start, lt: end } },
@@ -141,12 +142,17 @@ export class MonthlyRekapService {
       }
     }
 
-    return Object.entries(picTotals).map(([picName, data]) => ({
-      name: picName,
-      totalQty: parseFloat(data.total.toFixed(2)),
-      totalHarga: parseFloat(data.totalHarga.toFixed(2)),
-      details: data.details,
-    }));
+      return Object.entries(picTotals).map(([picName, data]) => ({
+        name: picName,
+        totalQty: parseFloat(data.total.toFixed(2)),
+        totalHarga: parseFloat(data.totalHarga.toFixed(2)),
+        details: data.details,
+      }));
+    } catch (error: any) {
+      this.logger.error(`Error in getRekap: ${error.message}`, error.stack);
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Gagal mengambil data rekap bulanan: ' + error.message);
+    }
   }
 
   private async sendWhatsAppMessage(message: string) {

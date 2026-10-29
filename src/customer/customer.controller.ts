@@ -8,7 +8,7 @@ import {
   Put,
   Patch,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -23,14 +23,14 @@ export class CustomerController {
     return this.customerService.create(dto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.CUSTOMER_READ')
   findAll() {
     return this.customerService.findAll();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.CUSTOMER_READ')
   findOne(@Param('id') id: string) {
     return this.customerService.findOne(+id);
   }

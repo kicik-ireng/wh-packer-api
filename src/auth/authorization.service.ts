@@ -56,18 +56,27 @@ export class AuthorizationService {
         },
       });
 
-      // Ensure 'none' role exists as default standard role
+      // Ensure 'none' role exists with NO permissions (waiting for admin approval)
       const noneRole = await this.prisma.role.findUnique({
         where: { RoleName: 'none' },
+        include: { Permissions: true },
       });
       if (!noneRole) {
         await this.prisma.role.create({
           data: {
             RoleName: 'none',
-            Description: 'Standard default role with permissions assigned by administrator',
+            Description: 'Default role for unassigned SSO users pending admin approval',
             IsActive: true,
             CreatedBy: 'System',
             UpdatedBy: 'System',
+          },
+        });
+      } else if (noneRole.Permissions.length > 0) {
+        // Enforce that role 'none' has zero permissions
+        await this.prisma.role.update({
+          where: { Id: noneRole.Id },
+          data: {
+            Permissions: { set: [] },
           },
         });
       }
@@ -90,9 +99,18 @@ export class AuthorizationService {
 
     // Global Administrator from SSO automatically gets 'admin' role
     const isGlobalAdmin =
-      globalRoles.includes('GLOBAL_ADMINISTRATOR') ||
-      globalRoles.includes('SUPER_ADMINISTRATOR') ||
-      globalRoles.includes('admin');
+      globalRoles.some((r: string) => {
+        const upper = (r || '').toUpperCase();
+        return (
+          upper === 'GLOBAL_ADMINISTRATOR' ||
+          upper === 'SUPER_ADMINISTRATOR' ||
+          upper === 'GLOBAL_ADMIN' ||
+          upper === 'ADMIN'
+        );
+      }) ||
+      (process.env.BOOTSTRAP_ADMIN_EMAIL &&
+        email &&
+        process.env.BOOTSTRAP_ADMIN_EMAIL.trim().toLowerCase() === email);
 
     const adminRole = await this.prisma.role.findUnique({
       where: { RoleName: 'admin' },
@@ -109,7 +127,7 @@ export class AuthorizationService {
       include: { Role: { include: { Permissions: true } } },
     });
 
-    // 2. Safe Fallback: if not found by SsoObjectId, check by Email
+    // 2. Safe Fallback: lookup by Email if not found by SsoObjectId
     if (!user && email) {
       const byEmail = await this.prisma.appUser.findUnique({
         where: { Email: email },
@@ -120,12 +138,54 @@ export class AuthorizationService {
       }
     }
 
-    if (user) {
-      // If user is global admin, enforce 'admin' role
-      const roleIdToSet = isGlobalAdmin
-        ? adminRole?.Id
-        : user.RoleId ?? noneRole?.Id;
+    if (isGlobalAdmin) {
+      // User with SSO Global Admin -> automatically assign/promote to admin role
+      if (user) {
+        user = await this.prisma.appUser.update({
+          where: { Id: user.Id },
+          data: {
+            SsoObjectId: identity.id,
+            UserName: username,
+            Name: name,
+            Email: email,
+            RoleId: adminRole?.Id,
+            IsActive: true,
+            LastLogin: new Date(),
+            UpdatedBy: actor,
+          },
+          include: { Role: { include: { Permissions: true } } },
+        });
+      } else {
+        user = await this.prisma.appUser.create({
+          data: {
+            SsoObjectId: identity.id,
+            UserName: username,
+            Name: name,
+            Email: email,
+            RoleId: adminRole?.Id,
+            IsActive: true,
+            LastLogin: new Date(),
+            CreatedBy: actor,
+            UpdatedBy: actor,
+          },
+          include: { Role: { include: { Permissions: true } } },
+        });
+      }
 
+      return {
+        roles: ['admin'],
+        permissions: [...PACKER_PERMISSIONS],
+        attributes: {
+          localUserId: user.Id,
+          accessStatus: 'ACTIVE',
+          RoleName: 'admin',
+        },
+      };
+    }
+
+    // Regular SSO user (not Global Admin)
+    if (user) {
+      // Existing user: preserve configured role, update profile info
       user = await this.prisma.appUser.update({
         where: { Id: user.Id },
         data: {
@@ -133,22 +193,21 @@ export class AuthorizationService {
           UserName: username,
           Name: name,
           Email: email,
-          RoleId: roleIdToSet,
           LastLogin: new Date(),
           UpdatedBy: actor,
         },
         include: { Role: { include: { Permissions: true } } },
       });
     } else {
-      // 3. Auto-provision new user: Global Administrator -> admin, else -> none
-      const initialRoleId = isGlobalAdmin ? adminRole?.Id : noneRole?.Id;
+      // Brand new user from SSO -> automatically create with role 'none'
+      // This ensures their data appears in User Management for the admin to configure
       user = await this.prisma.appUser.create({
         data: {
           SsoObjectId: identity.id,
           UserName: username,
           Name: name,
           Email: email,
-          RoleId: initialRoleId,
+          RoleId: noneRole?.Id,
           IsActive: true,
           LastLogin: new Date(),
           CreatedBy: actor,
@@ -158,6 +217,12 @@ export class AuthorizationService {
       });
     }
 
+    const currentRoleName = user.Role?.RoleName ?? 'none';
+    const isNoneRole =
+      currentRoleName.toLowerCase() === 'none' ||
+      !user.RoleId ||
+      (user.Role?.Permissions?.length ?? 0) === 0;
+
     if (!user.IsActive) {
       return {
         roles: [],
@@ -165,14 +230,27 @@ export class AuthorizationService {
         attributes: {
           localUserId: user.Id,
           accessStatus: 'BLOCKED',
+          RoleName: currentRoleName,
         },
       };
     }
 
-    const effectiveRoleName = isGlobalAdmin ? 'admin' : (user.Role?.RoleName ?? 'none');
-    const effectivePermissions = isGlobalAdmin
-      ? [...PACKER_PERMISSIONS]
-      : (user.Role?.Permissions.map((p) => p.Action) ?? []);
+    if (isNoneRole) {
+      return {
+        roles: ['none'],
+        permissions: [],
+        attributes: {
+          localUserId: user.Id,
+          accessStatus: 'PENDING',
+          RoleName: 'none',
+        },
+      };
+    }
+
+    // User has an active role configured by admin
+    const effectiveRoleName = user.Role?.RoleName ?? 'none';
+    const effectivePermissions =
+      user.Role?.Permissions.map((p) => p.Action) ?? [];
 
     return {
       roles: [effectiveRoleName],
@@ -192,20 +270,49 @@ export class AuthorizationService {
     });
 
     const isGlobalAdmin =
-      (user.globalRoles ?? []).includes('GLOBAL_ADMINISTRATOR') ||
-      (user.globalRoles ?? []).includes('SUPER_ADMINISTRATOR') ||
-      (user.roles ?? []).includes('admin');
+      (user.globalRoles ?? []).some((r: string) => {
+        const upper = (r || '').toUpperCase();
+        return (
+          upper === 'GLOBAL_ADMINISTRATOR' ||
+          upper === 'SUPER_ADMINISTRATOR' ||
+          upper === 'GLOBAL_ADMIN' ||
+          upper === 'ADMIN'
+        );
+      }) || (user.roles ?? []).includes('admin');
 
-    const roleName = isGlobalAdmin
-      ? 'admin'
-      : (local?.Role?.RoleName ?? 'none');
+    if (isGlobalAdmin) {
+      return {
+        Id: user.id,
+        Name: user.name ?? local?.Name ?? 'Vuteq User',
+        UserName: user.username ?? local?.UserName,
+        Email: user.email ?? local?.Email,
+        EmailVerified: user.emailVerified,
+        GlobalRoles: user.globalRoles,
+        LocalRole: 'admin',
+        RoleName: 'admin',
+        Permissions: [...PACKER_PERMISSIONS],
+        IsActive: true,
+        AccessStatus: 'ACTIVE',
+      };
+    }
 
-    const permissions = isGlobalAdmin
-      ? [...PACKER_PERMISSIONS]
-      : (local?.Role?.Permissions?.map((p) => p.Action) ?? user.permissions ?? []);
+    const roleName = local?.Role?.RoleName ?? 'none';
+    const isNoneRole =
+      roleName.toLowerCase() === 'none' ||
+      !local?.RoleId ||
+      (local?.Role?.Permissions?.length ?? 0) === 0;
 
     const isActive = local ? local.IsActive : true;
-    const accessStatus = !isActive ? 'BLOCKED' : 'ACTIVE';
+    let accessStatus = 'ACTIVE';
+    if (!isActive) {
+      accessStatus = 'BLOCKED';
+    } else if (isNoneRole) {
+      accessStatus = 'PENDING';
+    }
+
+    const permissions = isNoneRole
+      ? []
+      : (local?.Role?.Permissions?.map((p) => p.Action) ?? user.permissions ?? []);
 
     return {
       Id: user.id,
@@ -222,3 +329,4 @@ export class AuthorizationService {
     };
   }
 }
+

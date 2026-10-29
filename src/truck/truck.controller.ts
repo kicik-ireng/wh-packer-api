@@ -8,7 +8,7 @@ import {
   Put,
   Patch,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { TruckService } from './truck.service';
 import { CreateTruckDto } from './dto/create-truck.dto';
 import { UpdateTruckDto } from './dto/update-truck.dto';
@@ -23,14 +23,14 @@ export class TruckController {
     return this.truckService.create(dto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.TRUCK_READ')
   findAll() {
     return this.truckService.findAll();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.TRUCK_READ')
   findOne(@Param('id') id: string) {
     return this.truckService.findOne(+id);
   }

@@ -8,7 +8,7 @@ import {
   Put,
   Patch,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { ScheduleTruckService } from './schedule-truck.service';
 import { CreateScheduleTruckDto } from './dto/create-schedule-truck.dto';
 import { UpdateScheduleTruckDto } from './dto/update-schedule-truck.dto';
@@ -17,32 +17,32 @@ import { UpdateScheduleTruckDto } from './dto/update-schedule-truck.dto';
 export class ScheduleTruckController {
   constructor(private readonly scheduleTruckService: ScheduleTruckService) {}
 
+  @Public()
   @Post()
-  @Permissions('PACKER.SCHEDULE_TRUCK_CREATE')
   create(@Body() dto: CreateScheduleTruckDto) {
     return this.scheduleTruckService.create(dto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.SCHEDULE_TRUCK_READ')
   findAll() {
     return this.scheduleTruckService.findAll();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.SCHEDULE_TRUCK_READ')
   findOne(@Param('id') id: string) {
     return this.scheduleTruckService.findOne(+id);
   }
 
+  @Public()
   @Put(':id')
-  @Permissions('PACKER.SCHEDULE_TRUCK_UPDATE')
   update(@Param('id') id: string, @Body() dto: UpdateScheduleTruckDto) {
     return this.scheduleTruckService.update(+id, dto);
   }
 
+  @Public()
   @Patch(':id')
-  @Permissions('PACKER.SCHEDULE_TRUCK_UPDATE')
   patch(@Param('id') id: string, @Body() dto: UpdateScheduleTruckDto) {
     return this.scheduleTruckService.update(+id, dto);
   }

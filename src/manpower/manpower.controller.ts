@@ -8,7 +8,7 @@ import {
   Delete,
   ParseIntPipe,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { ManpowerService } from './manpower.service';
 import { CreateManpowerDto } from './dto/create-manpower.dto';
 import { UpdateManpowerDto } from './dto/update-manpower.dto';
@@ -23,14 +23,14 @@ export class ManpowerController {
     return this.manpowerService.create(createManpowerDto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.MANPOWER_READ')
   findAll() {
     return this.manpowerService.findAll();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.MANPOWER_READ')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.manpowerService.findOne(id);
   }

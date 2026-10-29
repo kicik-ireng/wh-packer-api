@@ -4,6 +4,7 @@ import {
   Logger,
   ConflictException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -301,69 +302,107 @@ export class Incoming2rService {
   }
 
   async findAll(page?: number, limit?: number) {
-    if (!page || !limit) {
-      const inc = await this.prisma.incoming2r.findMany({
-        take: 500,
-        orderBy: {
-          status: 'asc',
-        },
-        include: {
-          packingEntries: true,
-        },
-      });
-      return inc.map((i) => ({
+    try {
+      if (!page || !limit) {
+        const inc = await this.prisma.incoming2r.findMany({
+          take: 500,
+          orderBy: {
+            status: 'asc',
+          },
+          include: {
+            packingEntries: true,
+          },
+        });
+        return inc.map((i) => ({
+          ...i,
+          done: i.packingEntries.reduce(
+            (sum, entry) => sum + entry.qtyActualPacking,
+            0,
+          ),
+        }));
+      }
+
+      const skip = (page - 1) * limit;
+      const [data, total] = await Promise.all([
+        this.prisma.incoming2r.findMany({
+          skip,
+          take: limit,
+          orderBy: {
+            status: 'asc',
+          },
+          include: {
+            packingEntries: true,
+          },
+        }),
+        this.prisma.incoming2r.count(),
+      ]);
+
+      const mappedData = data.map((i) => ({
         ...i,
         done: i.packingEntries.reduce(
           (sum, entry) => sum + entry.qtyActualPacking,
           0,
         ),
       }));
+
+      return {
+        data: mappedData,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error: any) {
+      Logger.error(`Error in findAll Incoming2r: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Gagal mengambil data Incoming2r: ' + error.message);
     }
-
-    const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.incoming2r.findMany({
-        skip,
-        take: limit,
-        orderBy: {
-          status: 'asc',
-        },
-        include: {
-          packingEntries: true,
-        },
-      }),
-      this.prisma.incoming2r.count(),
-    ]);
-
-    const mappedData = data.map((i) => ({
-      ...i,
-      done: i.packingEntries.reduce(
-        (sum, entry) => sum + entry.qtyActualPacking,
-        0,
-      ),
-    }));
-
-    return {
-      data: mappedData,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
   }
 
-  findOne(id: number) {
-    return this.prisma.incoming2r.findUnique({ where: { id } });
+  async findOne(id: number) {
+    try {
+      const data = await this.prisma.incoming2r.findUnique({
+        where: { id },
+        include: { packingEntries: true },
+      });
+      if (!data) {
+        throw new NotFoundException(`Incoming 2R dengan ID ${id} tidak ditemukan`);
+      }
+      return data;
+    } catch (error: any) {
+      Logger.error(`Error in findOne Incoming2r ID ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Gagal mengambil data Incoming2r: ' + error.message);
+    }
   }
 
-  update(id: number, dto: UpdateIncoming2rDto) {
-    return this.prisma.incoming2r.update({ where: { id }, data: dto });
+  async update(id: number, dto: UpdateIncoming2rDto) {
+    try {
+      const existing = await this.prisma.incoming2r.findUnique({ where: { id } });
+      if (!existing) {
+        throw new NotFoundException(`Incoming 2R dengan ID ${id} tidak ditemukan`);
+      }
+      return await this.prisma.incoming2r.update({ where: { id }, data: dto });
+    } catch (error: any) {
+      Logger.error(`Error in update Incoming2r ID ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Gagal update data Incoming2r: ' + error.message);
+    }
   }
 
-  remove(id: number) {
-    return this.prisma.incoming2r.delete({ where: { id } });
+  async remove(id: number) {
+    try {
+      const existing = await this.prisma.incoming2r.findUnique({ where: { id } });
+      if (!existing) {
+        throw new NotFoundException(`Incoming 2R dengan ID ${id} tidak ditemukan`);
+      }
+      return await this.prisma.incoming2r.delete({ where: { id } });
+    } catch (error: any) {
+      Logger.error(`Error in remove Incoming2r ID ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Gagal menghapus data Incoming2r: ' + error.message);
+    }
   }
 
   async bulkCreate(data: CreateIncoming2rDto[]) {

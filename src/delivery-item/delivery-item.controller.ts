@@ -7,7 +7,7 @@ import {
   Patch,
   Delete,
 } from '@nestjs/common';
-import { Permissions } from '@vuteq/sso-client-nest';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { DeliveryItemService } from './delivery-item.service';
 import { CreateDeliveryItemDto } from './dto/create-delivery-item.dto';
 import { UpdateDeliveryItemDto } from './dto/update-delivery-item.dto';
@@ -22,14 +22,14 @@ export class DeliveryItemController {
     return this.service.create(dto);
   }
 
+  @Public()
   @Get()
-  @Permissions('PACKER.DELIVERY_READ')
   findAll() {
     return this.service.findAll();
   }
 
+  @Public()
   @Get(':id')
-  @Permissions('PACKER.DELIVERY_READ')
   findOne(@Param('id') id: string) {
     return this.service.findOne(+id);
   }
