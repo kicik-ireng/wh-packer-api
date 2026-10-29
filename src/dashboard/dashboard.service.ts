@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   // Format: dd/MM/yyyy
@@ -42,8 +44,9 @@ export class DashboardService {
   }
 
   async findAll() {
-    const now = new Date();
-    const todayStr = this.formatDate(now);
+    try {
+      const now = new Date();
+      const todayStr = this.formatDate(now);
 
     const twoDaysAgo = new Date(now);
     twoDaysAgo.setDate(now.getDate() - 2);
@@ -189,15 +192,20 @@ export class DashboardService {
       ),
     }));
 
-    return {
-      data2r: {
-        plan2r: totalPlan2r,
-        notDone: totalNotDone2r,
-      },
-      data4r: {
-        plan4r: totalPlan4r,
-        notDone: totalNotDone4r,
-      },
-    };
+      return {
+        data2r: {
+          plan2r: totalPlan2r,
+          notDone: totalNotDone2r,
+        },
+        data4r: {
+          plan4r: totalPlan4r,
+          notDone: totalNotDone4r,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`Error in Dashboard findAll: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Gagal mengambil data dashboard: ' + error.message);
+    }
   }
 }
+

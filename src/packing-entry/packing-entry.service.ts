@@ -141,13 +141,14 @@ export class PackingEntryService {
             },
           });
 
+          const qtyBefore = existingStock?.totalStock || 0;
+          const qtyAfter = qtyBefore + qtyDiff;
+
           if (existingStock) {
             await this.prisma.stock.update({
               where: { id: existingStock.id },
               data: {
-                totalStock: {
-                  increment: qtyDiff,
-                },
+                totalStock: qtyAfter,
                 updatedAt: new Date(),
               },
             });
@@ -158,6 +159,22 @@ export class PackingEntryService {
                 part2rId: null,
                 totalStock: qtyDiff,
                 rack: null,
+              },
+            });
+          }
+
+          if (qtyDiff !== 0) {
+            await this.prisma.stockTransaction.create({
+              data: {
+                part2rId: null,
+                part4rId: packingEntry.part4rId,
+                type: 'IN',
+                qtyBefore,
+                qtyChange: qtyDiff,
+                qtyAfter,
+                pic: 'Operator Packing',
+                reference: entry.packingReqNo ? `PR-${entry.packingReqNo}` : `PE-#${entry.id}`,
+                description: `Penambahan stok packing 4R (PR: ${entry.packingReqNo || '-'})`,
               },
             });
           }
@@ -193,13 +210,14 @@ export class PackingEntryService {
             },
           });
 
+          const qtyBefore = existingStock?.totalStock || 0;
+          const qtyAfter = qtyBefore + qtyDiff;
+
           if (existingStock) {
             await this.prisma.stock.update({
               where: { id: existingStock.id },
               data: {
-                totalStock: {
-                  increment: qtyDiff,
-                },
+                totalStock: qtyAfter,
                 updatedAt: new Date(),
               },
             });
@@ -213,11 +231,27 @@ export class PackingEntryService {
               },
             });
           }
+
+          if (qtyDiff !== 0) {
+            await this.prisma.stockTransaction.create({
+              data: {
+                part2rId: packingEntry.part2rId,
+                part4rId: null,
+                type: 'IN',
+                qtyBefore,
+                qtyChange: qtyDiff,
+                qtyAfter,
+                pic: 'Operator Packing',
+                reference: entry.packingReqNo ? `PR-${entry.packingReqNo}` : `PE-#${entry.id}`,
+                description: `Penambahan stok packing 2R (PR: ${entry.packingReqNo || '-'})`,
+              },
+            });
+          }
         }
       }
-    } catch (error) {
-      console.error('Error updating stock:', error);
-      throw new Error('Failed to update stock records');
+    } catch (error: any) {
+      console.error('Error updating stock in packing-entry:', error);
+      throw new Error('Failed to update stock records: ' + error.message);
     }
   }
 

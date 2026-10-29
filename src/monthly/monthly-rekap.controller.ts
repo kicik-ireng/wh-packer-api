@@ -5,6 +5,7 @@ import {
   Res,
   BadRequestException,
 } from '@nestjs/common';
+import { Permissions } from '@vuteq/sso-client-nest';
 import { MonthlyRekapService } from './monthly-rekap.service';
 import { Response } from 'express';
 import * as ExcelJS from 'exceljs';
@@ -14,6 +15,7 @@ export class MonthlyRekapController {
   constructor(private readonly monthlyRekapService: MonthlyRekapService) {}
 
   @Get()
+  @Permissions('PACKER.SALARY_READ')
   async getRekap(
     @Query('year') year?: string,
     @Query('month') month?: string,
@@ -31,6 +33,7 @@ export class MonthlyRekapController {
   }
 
   @Get('export-excel')
+  @Permissions('PACKER.SALARY_READ')
   async exportExcel(
     @Res() res: Response,
     @Query('year') year?: string,
@@ -68,7 +71,7 @@ export class MonthlyRekapController {
       ref: 'A1',
       headerRow: true,
       style: {
-        theme: 'TableStyleMedium9', // bisa diganti TableStyleLight11, TableStyleDark1, dll.
+        theme: 'TableStyleMedium9',
         showRowStripes: true,
       },
       columns: [
@@ -79,8 +82,6 @@ export class MonthlyRekapController {
       rows: data.map((row) => [row.picName, row.totalPcs, row.totalSalary]),
     });
 
-    // 🔹 Auto width kolom
-    // 🔹 Auto width kolom setelah addTable
     if (worksheet.columns) {
       worksheet.columns.forEach((col) => {
         let maxLength = 15;
@@ -92,7 +93,6 @@ export class MonthlyRekapController {
       });
     }
 
-    // 🔹 Buffer hasil Excel
     const buffer = await workbook.xlsx.writeBuffer();
     const filename = `monthly_rekap_${from ?? y + '-' + m}_to_${to ?? ''}.xlsx`;
 
@@ -105,29 +105,3 @@ export class MonthlyRekapController {
     res.end(buffer);
   }
 }
-
-// tanpa parameter
-
-//   const y = year ? parseInt(year, 10) : undefined;
-//   const m = month ? parseInt(month, 10) : undefined;
-//   const d = day ? parseInt(day, 10) : undefined;
-
-//   return this.monthlyRekapService.getRekap(y, m, d, from, to);
-
-// Endpoint: /monthly-rekap?year=2025&month=9
-
-//     const y = parseInt(year, 10);
-//     const m = parseInt(month, 10);
-
-//       throw new Error('Year and month must be valid numbers');
-
-//     return this.monthlyRekapService.getMonthlyRekap(y, m);
-
-// otomatis
-
-//     const now = new Date();
-
-//     const y = year ? parseInt(year, 10) : now.getFullYear();
-//     const m = month ? parseInt(month, 10) : now.getMonth() + 1; // bulan dari 1-12
-
-//     return this.monthlyRekapService.getMonthlyRekap(y, m);

@@ -73,6 +73,14 @@ export class DeliveryOrderService {
           },
         });
 
+        // Driver & Customer for transaction logging
+        const driver = driverId
+          ? await prisma.driver.findUnique({ where: { id: driverId } })
+          : null;
+        const customer = customerId
+          ? await prisma.customer.findUnique({ where: { id: customerId } })
+          : null;
+
         // Create items
         for (const item of items) {
           const { part2rId, part4rId, qtyDelivered } = item;
@@ -101,10 +109,13 @@ export class DeliveryOrderService {
               `Stock tidak cukup untuk part${is4R ? '4R' : '2R'} ID ${partId}. Stock: ${stock.totalStock}, Qty: ${qtyDelivered}`,
             );
 
+          const qtyBefore = stock.totalStock;
+          const qtyAfter = qtyBefore - qtyDelivered;
+
           // Update stock & create delivery item
           await prisma.stock.update({
             where: { id: stock.id },
-            data: { totalStock: { decrement: qtyDelivered } },
+            data: { totalStock: qtyAfter },
           });
           await prisma.deliveryItem.create({
             data: {
@@ -112,6 +123,21 @@ export class DeliveryOrderService {
               part2rId,
               part4rId,
               qtyDelivered,
+            },
+          });
+
+          // Record Stock Card Transaction (OUT)
+          await prisma.stockTransaction.create({
+            data: {
+              part2rId: is4R ? null : partId,
+              part4rId: is4R ? partId : null,
+              type: 'OUT',
+              qtyBefore,
+              qtyChange: -qtyDelivered,
+              qtyAfter,
+              pic: driver?.name || 'Driver Delivery',
+              reference: `DO-${noDo}`,
+              description: `Barang Keluar: Pengiriman ke ${customer?.name || 'Customer'} (DO: ${noDo})`,
             },
           });
         }
@@ -131,138 +157,145 @@ export class DeliveryOrderService {
           },
         });
 
-      // 3️⃣ Generate WA message
-      // const waMessage = this.generateWAMessage([deliveryOrderWithRelations]);
-
       return {
         message: 'Delivery order berhasil dibuat',
         deliveryOrder: deliveryOrderWithRelations,
-        // waMessage,
       };
     } catch (error: any) {
-      this.logger.error('Error create delivery order', error);
+      this.logger.error(`Error create delivery order: ${error.message}`, error.stack);
       throw error;
     }
   }
 
   async findAll(page?: number, limit?: number) {
-    if (!page || !limit) {
-      return this.prisma.deliveryOrder.findMany({
-        take: 500,
-        include: {
-          driver: true,
-          customer: true,
-          schedule: { include: { truck: true, driver: true } },
-          items: {
-            include: { part2r: true, part4r: true },
+    try {
+      if (!page || !limit) {
+        return await this.prisma.deliveryOrder.findMany({
+          take: 500,
+          include: {
+            driver: true,
+            customer: true,
+            schedule: { include: { truck: true, driver: true } },
+            items: {
+              include: { part2r: true, part4r: true },
+            },
           },
+          orderBy: { date: 'desc' },
+        });
+      }
+
+      const skip = (page - 1) * limit;
+      const [data, total] = await Promise.all([
+        this.prisma.deliveryOrder.findMany({
+          skip,
+          take: limit,
+          include: {
+            driver: true,
+            customer: true,
+            schedule: { include: { truck: true, driver: true } },
+            items: {
+              include: { part2r: true, part4r: true },
+            },
+          },
+          orderBy: { date: 'desc' },
+        }),
+        this.prisma.deliveryOrder.count(),
+      ]);
+
+      return {
+        data,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
         },
-        orderBy: { date: 'desc' },
-      });
+      };
+    } catch (error: any) {
+      this.logger.error(`Error findAll delivery order: ${error.message}`, error.stack);
+      throw error;
     }
-
-    const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.deliveryOrder.findMany({
-        skip,
-        take: limit,
-        include: {
-          driver: true,
-          customer: true,
-          schedule: { include: { truck: true, driver: true } },
-          items: {
-            include: { part2r: true, part4r: true },
-          },
-        },
-        orderBy: { date: 'desc' },
-      }),
-      this.prisma.deliveryOrder.count(),
-    ]);
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
   }
 
   async findOne(id: number) {
-    const order = await this.prisma.deliveryOrder.findUnique({
-      where: { id },
-      include: {
-        driver: true,
-        customer: true,
-        items: {
-          include: {
-            part2r: true,
-            part4r: true,
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      throw new NotFoundException('Delivery order tidak ditemukan');
-    }
-
-    return order;
-  }
-
-
-  async update(id: number, dto: UpdateDeliveryOrderDto) {
-    return this.prisma.$transaction(async (prisma) => {
-      const existing = await prisma.deliveryOrder.findUnique({ where: { id } });
-
-      if (!existing) {
-        throw new NotFoundException('Delivery order tidak ditemukan');
-      }
-
-      const updateData: any = {};
-
-      if (dto.driverId !== undefined) {
-        const driverExists = await prisma.driver.count({
-          where: { id: dto.driverId },
-        });
-        if (!driverExists) {
-          throw new NotFoundException(
-            `Driver dengan ID ${dto.driverId} tidak ditemukan`,
-          );
-        }
-        updateData.driverId = dto.driverId;
-      }
-
-      if (dto.date !== undefined) {
-        updateData.date = new Date(dto.date);
-      }
-
-      // Tambahkan handling deliverytime
-      if (dto.deliverytime !== undefined) {
-        updateData.deliverytime = new Date(dto.deliverytime);
-      }
-      //console.log('Check 0:', id);
-      if (Object.keys(updateData).length === 0) {
-        throw new BadRequestException(
-          'Tidak ada data yang dikirim untuk diupdate',
-        );
-      }
-      //console.log('Check 1:', id);
-
-      const updated = await prisma.deliveryOrder.update({
+    try {
+      const order = await this.prisma.deliveryOrder.findUnique({
         where: { id },
-        data: updateData,
         include: {
           driver: true,
           customer: true,
-          items: { include: { part2r: true, part4r: true } },
+          items: {
+            include: {
+              part2r: true,
+              part4r: true,
+            },
+          },
         },
       });
-      //console.log('Check 2:', id);
-      return { message: 'Delivery order berhasil diupdate', data: updated };
-    });
+
+      if (!order) {
+        throw new NotFoundException('Delivery order tidak ditemukan');
+      }
+
+      return order;
+    } catch (error: any) {
+      this.logger.error(`Error findOne delivery order ID ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async update(id: number, dto: UpdateDeliveryOrderDto) {
+    try {
+      return await this.prisma.$transaction(async (prisma) => {
+        const existing = await prisma.deliveryOrder.findUnique({ where: { id } });
+
+        if (!existing) {
+          throw new NotFoundException('Delivery order tidak ditemukan');
+        }
+
+        const updateData: any = {};
+
+        if (dto.driverId !== undefined) {
+          const driverExists = await prisma.driver.count({
+            where: { id: dto.driverId },
+          });
+          if (!driverExists) {
+            throw new NotFoundException(
+              `Driver dengan ID ${dto.driverId} tidak ditemukan`,
+            );
+          }
+          updateData.driverId = dto.driverId;
+        }
+
+        if (dto.date !== undefined) {
+          updateData.date = new Date(dto.date);
+        }
+
+        if (dto.deliverytime !== undefined) {
+          updateData.deliverytime = new Date(dto.deliverytime);
+        }
+
+        if (Object.keys(updateData).length === 0) {
+          throw new BadRequestException(
+            'Tidak ada data yang dikirim untuk diupdate',
+          );
+        }
+
+        const updated = await prisma.deliveryOrder.update({
+          where: { id },
+          data: updateData,
+          include: {
+            driver: true,
+            customer: true,
+            items: { include: { part2r: true, part4r: true } },
+          },
+        });
+        return { message: 'Delivery order berhasil diupdate', data: updated };
+      });
+    } catch (error: any) {
+      this.logger.error(`Error update delivery order ID ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async remove(id: number) {
@@ -286,12 +319,27 @@ export class DeliveryOrderService {
           });
 
           if (stock) {
+            const qtyBefore = stock.totalStock;
+            const qtyAfter = qtyBefore + qtyDelivered;
             await prisma.stock.update({
               where: { id: stock.id },
               data: {
-                totalStock: {
-                  increment: qtyDelivered,
-                },
+                totalStock: qtyAfter,
+              },
+            });
+
+            // Record transaction rollback
+            await prisma.stockTransaction.create({
+              data: {
+                part2rId: part2rId || null,
+                part4rId: part4rId || null,
+                type: 'ADJUSTMENT',
+                qtyBefore,
+                qtyChange: qtyDelivered,
+                qtyAfter,
+                pic: 'System / Cancel DO',
+                reference: `CANCEL-DO-${order.noDo}`,
+                description: `Pengembalian stock akibat pembatalan DO: ${order.noDo}`,
               },
             });
           }
@@ -303,36 +351,45 @@ export class DeliveryOrderService {
 
         return { message: 'Delivery order berhasil dihapus' };
       });
-    } catch (error) {
-      console.error('Gagal menghapus delivery order:', error);
+    } catch (error: any) {
+      this.logger.error(`Gagal menghapus delivery order ID ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
       throw new InternalServerErrorException('Gagal menghapus delivery order');
     }
   }
 
   async findManyWithRelations(orderIds: number[]) {
-    if (!orderIds || orderIds.length === 0) return [];
+    try {
+      if (!orderIds || orderIds.length === 0) return [];
 
-    return this.prisma.deliveryOrder.findMany({
-      where: { id: { in: orderIds } },
-      include: {
-        driver: true,
-        customer: true,
-        schedule: { include: { truck: true } },
-        items: { include: { part2r: true, part4r: true } },
-      },
-    });
+      return await this.prisma.deliveryOrder.findMany({
+        where: { id: { in: orderIds } },
+        include: {
+          driver: true,
+          customer: true,
+          schedule: { include: { truck: true } },
+          items: { include: { part2r: true, part4r: true } },
+        },
+      });
+    } catch (error: any) {
+      this.logger.error(`Error findManyWithRelations: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async exportToExcelByDate(date: string, type: string, res: Response) {
-    const targetDate = new Date(date);
+    try {
+      const targetDate = new Date(date);
 
-    const orders = await this.prisma.deliveryOrder.findMany({
-      where: {
-        date: {
-          gte: new Date(targetDate.setHours(0, 0, 0, 0)),
-          lte: new Date(targetDate.setHours(23, 59, 59, 999)),
+      const orders = await this.prisma.deliveryOrder.findMany({
+        where: {
+          date: {
+            gte: new Date(targetDate.setHours(0, 0, 0, 0)),
+            lte: new Date(targetDate.setHours(23, 59, 59, 999)),
+          },
         },
-      },
       include: {
         driver: true,
         items: {
@@ -475,5 +532,10 @@ export class DeliveryOrderService {
 
     await workbook.xlsx.write(res);
     res.end();
+  } catch (error: any) {
+    this.logger.error(`Error exportToExcelByDate: ${error.message}`, error.stack);
+    throw new InternalServerErrorException('Gagal mengekspor delivery order ke Excel');
   }
 }
+}
+

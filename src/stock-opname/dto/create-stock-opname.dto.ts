@@ -9,11 +9,39 @@ export class CreateStockOpnameDto {
   @IsInt()
   part4rId?: number;
 
+  @IsOptional()
+  @IsInt()
+  qtyBeginning?: number;
+
+  @IsOptional()
+  @IsInt()
+  qtyIn?: number;
+
+  @IsOptional()
+  @IsInt()
+  qtyOut?: number;
+
   @IsInt()
   qtySystem: number;
 
   @IsInt()
   qtyActual: number;
+
+  @IsOptional()
+  @IsInt()
+  qtyDiff?: number;
+
+  @IsOptional()
+  @IsString()
+  rack?: string;
+
+  @IsOptional()
+  @IsString()
+  picStockist?: string;
+
+  @IsOptional()
+  @IsString()
+  picApproved?: string;
 
   @IsOptional()
   @IsString()
@@ -27,3 +55,4 @@ export class CreateStockOpnameDto {
   @IsString()
   status?: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
+

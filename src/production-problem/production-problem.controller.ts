@@ -7,13 +7,12 @@ import {
   Patch,
   Delete,
   ParseIntPipe,
-  UseGuards,
   Query,
 } from '@nestjs/common';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { ProductionProblemService } from './production-problem.service';
 import { CreateProductionProblemDto } from './dto/create-production-problem.dto';
 import { UpdateProductionProblemDto } from './dto/update-production-problem.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('production-problem')
 export class ProductionProblemController {
@@ -21,11 +20,13 @@ export class ProductionProblemController {
     private readonly productionProblemService: ProductionProblemService,
   ) {}
 
+  @Public()
   @Post()
   create(@Body() createDto: CreateProductionProblemDto) {
     return this.productionProblemService.create(createDto);
   }
 
+  @Public()
   @Get()
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pageNum = page ? parseInt(page, 10) : undefined;
@@ -33,12 +34,14 @@ export class ProductionProblemController {
     return this.productionProblemService.findAll(pageNum, limitNum);
   }
 
+  @Public()
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.productionProblemService.findOne(id);
   }
 
   @Patch(':id')
+  @Permissions('PACKER.PRODUCTION_PROBLEM_UPDATE')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateProductionProblemDto,
@@ -47,6 +50,7 @@ export class ProductionProblemController {
   }
 
   @Delete(':id')
+  @Permissions('PACKER.PRODUCTION_PROBLEM_DELETE')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.productionProblemService.remove(id);
   }

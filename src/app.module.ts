@@ -1,8 +1,15 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+import { VuteqSsoModule } from '@vuteq/sso-client-nest';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { AuthorizationService } from './auth/authorization.service';
 import { AdminModule } from './admin/admin.module';
+import { RequestContextMiddleware } from './common/request-context.middleware';
+
 import { ManpowerModule } from './manpower/manpower.module';
 import { PackingReportModule } from './packing-report/packing-report.module';
 import { ProductionProblemModule } from './production-problem/production-problem.module';
@@ -22,15 +29,34 @@ import { DashboardDeliveryModule } from './dashboard-delivery/dashboard-delivery
 import { TruckModule } from './truck/truck.module';
 import { ScheduleTruckModule } from './schedule-truck/schedule-truck.module';
 import { ScheduleCustomerModule } from './schedule-customer/schedule-customer.module';
-import { ScheduleModule } from '@nestjs/schedule';
-
 import { MonthlyRekapModule } from './monthly/monthly-rekap.module';
 import { StockOpnameModule } from './stock-opname/stock-opname.module';
 import { StockTransactionModule } from './stock-transaction/stock-transaction.module';
+import { DandoriScheduleModule } from './dandori-schedule/dandori-schedule.module';
+
+import { APP_GUARD } from '@nestjs/core';
+import { AppAuthGuard } from './auth/guards/app-auth.guard';
+
 @Module({
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     AuthModule,
+    VuteqSsoModule.forRootAsync({
+      global: true,
+      imports: [AuthModule],
+      inject: [AuthorizationService],
+      useFactory: (authorization: AuthorizationService) => ({
+        baseUrl: process.env.VUTEQ_SSO_BASE_URL ?? 'https://sso.vuteq.co.id',
+        secret: process.env.VUTEQ_SSO_SECRET ?? '',
+        allowedClientIds: (process.env.VUTEQ_SSO_ALLOWED_CLIENT_IDS ?? 'exedy-web')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        resolveAuthorization: (identity, claims) =>
+          authorization.resolve(identity, claims),
+      }),
+    }),
     AdminModule,
     ManpowerModule,
     PackingReportModule,
@@ -53,9 +79,20 @@ import { StockTransactionModule } from './stock-transaction/stock-transaction.mo
     MonthlyRekapModule,
     StockOpnameModule,
     StockTransactionModule,
+    DandoriScheduleModule,
   ],
   controllers: [AppController],
-  // providers: [AppService,TaskService],
-  providers: [AppService],
+  providers: [
+    AppService,
+    PrismaService,
+    {
+      provide: APP_GUARD,
+      useClass: AppAuthGuard,
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

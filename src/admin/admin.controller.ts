@@ -1,87 +1,91 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
+  Controller,
+  Delete,
+  Get,
   Param,
   Patch,
-  Delete,
-  ParseIntPipe,
-  UseGuards,
-  UnauthorizedException,
+  Post,
+  Query,
+  Req,
 } from '@nestjs/common';
+import { CurrentUser, Permissions, type VuteqUser } from '@vuteq/sso-client-nest';
+import { actorContext } from '../common/actor';
+import type { RequestWithContext } from '../common/api.types';
+import { AdminQueryDto, AssignRoleDto, RoleBodyDto } from './admin.dto';
 import { AdminService } from './admin.service';
-import { CreateAdminDto } from './dto/create-admin.dto';
-import { UpdateAdminDto } from './dto/update-admin.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import * as bcrypt from 'bcryptjs';
-import * as jwt from 'jsonwebtoken';
 
-@Controller('admin')
-export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+@Controller('users')
+export class UsersController {
+  constructor(private readonly service: AdminService) {}
 
-  // Register endpoint
-  @Post('register')
-  async register(@Body() createAdminDto: CreateAdminDto) {
-    const admins = await this.adminService.findAll();
-    if (admins.length > 0) {
-      throw new Error('Admin sudah ada, registrasi ditutup');
-    }
-    return this.adminService.create(createAdminDto);
-  }
-
-  // Login endpoint
-  @Post('login')
-  async login(@Body() body: { username: string; password: string }) {
-    const { username, password } = body;
-    const admin = await this.adminService.findByUsername(username);
-    if (!admin) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const isPasswordValid = await bcrypt.compare(password, admin.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    const token = jwt.sign(
-      { adminId: admin.id },
-      process.env.JWT_SECRET || 'your_jwt_secret',
-      { expiresIn: '1d' },
-    );
-    return { token };
-  }
-
-  // All below
-  @UseGuards(JwtAuthGuard)
-  @Post()
-  create(@Body() createAdminDto: CreateAdminDto) {
-    return this.adminService.create(createAdminDto);
-  }
-
-  @UseGuards(JwtAuthGuard)
   @Get()
-  findAll() {
-    return this.adminService.findAll();
+  @Permissions('PACKER.USER_MANAGEMENT')
+  list(@Query() query: AdminQueryDto) {
+    return this.service.users(query);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.findOne(id);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Patch(':id')
+  @Patch(':id/authorization')
+  @Permissions('PACKER.USER_MANAGEMENT')
   update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateAdminDto: UpdateAdminDto,
+    @Param('id') id: string,
+    @Body() body: AssignRoleDto,
+    @Req() request: RequestWithContext,
+    @CurrentUser() user: VuteqUser,
   ) {
-    return this.adminService.update(id, updateAdminDto);
+    return this.service.assignRole(id, body, actorContext(request, user));
   }
 
-  @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.adminService.remove(id);
+  @Permissions('PACKER.USER_MANAGEMENT')
+  delete(
+    @Param('id') id: string,
+    @Req() request: RequestWithContext,
+    @CurrentUser() user: VuteqUser,
+  ) {
+    return this.service.deleteUser(id, actorContext(request, user));
+  }
+}
+
+@Controller('roles')
+export class RolesController {
+  constructor(private readonly service: AdminService) {}
+
+  @Get()
+  @Permissions('PACKER.ROLE_MANAGEMENT')
+  list(@Query() query: AdminQueryDto) {
+    return this.service.roles(query);
+  }
+
+  @Post()
+  @Permissions('PACKER.ROLE_MANAGEMENT')
+  create(
+    @Body() body: RoleBodyDto,
+    @Req() request: RequestWithContext,
+    @CurrentUser() user: VuteqUser,
+  ) {
+    return this.service.saveRole(null, body, actorContext(request, user));
+  }
+
+  @Patch(':id')
+  @Permissions('PACKER.ROLE_MANAGEMENT')
+  update(
+    @Param('id') id: string,
+    @Body() body: RoleBodyDto,
+    @Req() request: RequestWithContext,
+    @CurrentUser() user: VuteqUser,
+  ) {
+    return this.service.saveRole(Number(id), body, actorContext(request, user));
+  }
+}
+
+@Controller('permissions')
+export class PermissionsController {
+  constructor(private readonly service: AdminService) {}
+
+  @Get()
+  @Permissions('PACKER.ROLE_MANAGEMENT')
+  list(@Query() query: AdminQueryDto) {
+    return this.service.permissions(query);
   }
 }

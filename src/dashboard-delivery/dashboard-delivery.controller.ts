@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { Permissions, Public } from '@vuteq/sso-client-nest';
 import { DashboardDeliveryService } from './dashboard-delivery.service';
 
 @Controller('dashboard-delivery')
@@ -7,6 +8,7 @@ export class DashboardDeliveryController {
     private readonly dashboardDeliveryService: DashboardDeliveryService,
   ) {}
 
+  @Public()
   @Get()
   findAll() {
     return this.dashboardDeliveryService.findAll();
