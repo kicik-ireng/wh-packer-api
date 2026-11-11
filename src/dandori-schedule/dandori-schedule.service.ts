@@ -365,4 +365,313 @@ export class DandoriScheduleService {
       throw new InternalServerErrorException('Gagal menghapus schedule dandori: ' + error.message);
     }
   }
+
+  async getAvailableIncoming() {
+    try {
+      const [in2r, in4r, schedules] = await Promise.all([
+        this.prisma.incoming2r.findMany({
+          where: { status: { not: 'APPROVED' } },
+          orderBy: { createdAt: 'desc' },
+          take: 300,
+        }),
+        this.prisma.incoming4r.findMany({
+          where: { status: { not: 'APPROVED' } },
+          orderBy: { createdAt: 'desc' },
+          take: 300,
+        }),
+        this.prisma.dandoriPackingSchedule.findMany({
+          select: {
+            packingReqNo: true,
+            type: true,
+            qtyPlan: true,
+            lineNo: true,
+          },
+        }),
+      ]);
+
+      const mapAllocations = (prId: string, type: string) => {
+        const matched = schedules.filter((s) => s.packingReqNo === prId && s.type === type);
+        const totalAllocated = matched.reduce((sum, s) => sum + (s.qtyPlan || 0), 0);
+        const lines = Array.from(new Set(matched.map((s) => s.lineNo)));
+        return { totalAllocated, lines };
+      };
+
+      const items2R = in2r.map((item) => {
+        const effectiveQty = item.qtyDiterimaFisik ?? item.qtyPlan;
+        const { totalAllocated, lines } = mapAllocations(item.prId, '2R');
+        const remainingQty = Math.max(0, effectiveQty - totalAllocated);
+        return {
+          id: item.id,
+          prId: item.prId,
+          type: '2R',
+          customer: item.cust,
+          segment: item.segment,
+          assyNo16: item.assyNo16,
+          assyNo10: item.assyNo10,
+          oeNo: item.oeNo,
+          model: item.model,
+          partName: item.EMIpartname,
+          qtySuratJalan: item.qtyPlan,
+          qtyDiterimaFisik: item.qtyDiterimaFisik,
+          effectiveQty,
+          hasDiscrepancy: item.hasDiscrepancy,
+          totalAllocated,
+          remainingQty,
+          allocatedLines: lines,
+          status: item.status,
+        };
+      });
+
+      const items4R = in4r.map((item) => {
+        const effectiveQty = item.qtyDiterimaFisik ?? item.qtyPlan;
+        const { totalAllocated, lines } = mapAllocations(item.prId, '4R');
+        const remainingQty = Math.max(0, effectiveQty - totalAllocated);
+        return {
+          id: item.id,
+          prId: item.prId,
+          type: '4R',
+          customer: item.cust,
+          segment: item.seg,
+          assyNo16: item.assyNo16,
+          assyNo10: item.assyNo10,
+          oeNo: item.oeNo,
+          model: item.model,
+          partName: item.model,
+          qtySuratJalan: item.qtyPlan,
+          qtyDiterimaFisik: item.qtyDiterimaFisik,
+          effectiveQty,
+          hasDiscrepancy: item.hasDiscrepancy,
+          totalAllocated,
+          remainingQty,
+          allocatedLines: lines,
+          status: item.status,
+        };
+      });
+
+      return {
+        items2R,
+        items4R,
+        allItems: [...items2R, ...items4R].sort((a, b) => b.remainingQty - a.remainingQty),
+      };
+    } catch (error: any) {
+      this.logger.error(`Error getAvailableIncoming: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Gagal mengambil data incoming siap plan: ' + error.message);
+    }
+  }
+
+  async planSplit(dto: {
+    prId: string;
+    type: string;
+    scheduleDate: string;
+    allocations: {
+      lineNo: string;
+      shift?: string;
+      qtyPlan: number;
+      pic1Id?: number;
+      pic2Id?: number;
+      pic3Id?: number;
+      notes?: string;
+    }[];
+  }) {
+    try {
+      const type = dto.type.toUpperCase();
+      const scheduleDate = new Date(dto.scheduleDate);
+
+      if (isNaN(scheduleDate.getTime())) {
+        throw new BadRequestException('Format tanggal tidak valid. Gunakan YYYY-MM-DD');
+      }
+
+      if (!dto.allocations || dto.allocations.length === 0) {
+        throw new BadRequestException('Harus menentukan minimal 1 alokasi line.');
+      }
+
+      let incoming: any = null;
+      let part2rId: number | null = null;
+      let part4rId: number | null = null;
+      let customerPartNo: string | null = null;
+      let explannerNo: string | null = null;
+      let model: string | null = null;
+      let customer: string | null = null;
+
+      if (type === '2R') {
+        incoming = await this.prisma.incoming2r.findUnique({ where: { prId: dto.prId } });
+        if (!incoming) throw new NotFoundException(`Incoming 2R dengan PR ${dto.prId} tidak ditemukan`);
+        customerPartNo = incoming.oeNo;
+        explannerNo = incoming.assyNo16;
+        model = incoming.model;
+        customer = incoming.cust;
+
+        const p = await this.prisma.partDatabase2r.findFirst({
+          where: { assyNo16: incoming.assyNo16, oeNo: incoming.oeNo },
+        });
+        if (p) part2rId = p.id;
+      } else {
+        incoming = await this.prisma.incoming4r.findUnique({ where: { prId: dto.prId } });
+        if (!incoming) throw new NotFoundException(`Incoming 4R dengan PR ${dto.prId} tidak ditemukan`);
+        customerPartNo = incoming.oeNo;
+        explannerNo = incoming.assyNo16;
+        model = incoming.model;
+        customer = incoming.cust;
+
+        const p = await this.prisma.partDatabase4r.findFirst({
+          where: { assyNo16: incoming.assyNo16, oeNo: incoming.oeNo },
+        });
+        if (p) part4rId = p.id;
+      }
+
+      const effectiveQty = incoming.qtyDiterimaFisik ?? incoming.qtyPlan;
+
+      // Cek alokasi existing untuk PR ini
+      const existingSchedules = await this.prisma.dandoriPackingSchedule.findMany({
+        where: { packingReqNo: dto.prId, type },
+      });
+      const alreadyAllocated = existingSchedules.reduce((sum, s) => sum + s.qtyPlan, 0);
+      const newAllocationSum = dto.allocations.reduce((sum, a) => sum + Number(a.qtyPlan || 0), 0);
+
+      if (alreadyAllocated + newAllocationSum > effectiveQty) {
+        throw new BadRequestException(
+          `POKAYOKE: Total alokasi (${alreadyAllocated + newAllocationSum} pcs) melebihi kuantitas fisik PR yang tersedia (${effectiveQty} pcs). Sisa yang bisa dialokasikan: ${Math.max(0, effectiveQty - alreadyAllocated)} pcs.`
+        );
+      }
+
+      // Buat schedule per line
+      const createdList = [];
+      for (const alloc of dto.allocations) {
+        const cleanLine = alloc.lineNo.replace(/[^0-9]/g, '') || alloc.lineNo;
+        const schedule = await this.prisma.dandoriPackingSchedule.create({
+          data: {
+            scheduleDate,
+            lineNo: cleanLine,
+            shift: alloc.shift || 'Shift 1',
+            type,
+            packingReqNo: dto.prId,
+            customerPartNo,
+            explannerNo,
+            model,
+            customer,
+            qtyPlan: Number(alloc.qtyPlan),
+            qtyActual: 0,
+            status: 'SCHEDULED',
+            pic1Id: alloc.pic1Id || null,
+            pic2Id: alloc.pic2Id || null,
+            pic3Id: alloc.pic3Id || null,
+            Incoming2rId: type === '2R' ? incoming.id : null,
+            Incoming4rId: type === '4R' ? incoming.id : null,
+            part2rId,
+            part4rId,
+            notes: alloc.notes || null,
+          },
+          include: {
+            pic1: true,
+            pic2: true,
+            pic3: true,
+          },
+        });
+        createdList.push(schedule);
+      }
+
+      return {
+        message: `Berhasil mengalokasikan PR ${dto.prId} ke ${createdList.length} line produksi`,
+        schedules: createdList,
+      };
+    } catch (error: any) {
+      this.logger.error(`Error planSplit for PR ${dto.prId}: ${error.message}`, error.stack);
+      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException('Gagal memproses pembagian rencana produksi: ' + error.message);
+    }
+  }
+
+  async getLineTasksForOperator(lineNo: string, dateStr: string, shift?: string) {
+    try {
+      const cleanLineNo = lineNo.replace(/[^0-9]/g, '') || lineNo;
+      const { start, end } = this.parseDateRange(dateStr);
+
+      const where: any = {
+        lineNo: cleanLineNo,
+        scheduleDate: { gte: start, lte: end },
+      };
+      if (shift) where.shift = shift;
+
+      const schedules = await this.prisma.dandoriPackingSchedule.findMany({
+        where,
+        include: {
+          pic1: true,
+          pic2: true,
+          pic3: true,
+          Incoming2r: true,
+          Incoming4r: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (schedules.length === 0) {
+        return {
+          hasSchedule: false,
+          message: `Line ${lineNo} belum memiliki jadwal kerja dari Production Planner untuk tanggal ${dateStr}.`,
+          tasks: [],
+          assignedMPs: [],
+        };
+      }
+
+      // Ambil packing entries yang sudah disubmit di line ini hari ini
+      const entries = await this.prisma.packingEntry.findMany({
+        where: {
+          packingReport: {
+            lineNo: cleanLineNo,
+            tanggalPacking: { gte: start, lte: end },
+          },
+        },
+      });
+
+      const tasks = schedules.map((s) => {
+        const actualForPr = entries
+          .filter((e) => e.packingReqNo === s.packingReqNo && e.type === s.type)
+          .reduce((sum, e) => sum + (e.qtyActualPacking || 0), 0);
+
+        const totalActual = Math.max(s.qtyActual, actualForPr);
+        const balance = Math.max(0, s.qtyPlan - totalActual);
+        const isCompleted = totalActual >= s.qtyPlan;
+
+        return {
+          id: s.id,
+          scheduleDate: s.scheduleDate,
+          lineNo: s.lineNo,
+          shift: s.shift,
+          type: s.type,
+          packingReqNo: s.packingReqNo,
+          customerPartNo: s.customerPartNo || s.Incoming2r?.oeNo || s.Incoming4r?.oeNo || '—',
+          explannerNo: s.explannerNo || s.Incoming2r?.assyNo16 || s.Incoming4r?.assyNo16 || '—',
+          model: s.model || s.Incoming2r?.model || s.Incoming4r?.model || '—',
+          customer: s.customer || s.Incoming2r?.cust || s.Incoming4r?.cust || '—',
+          qtyPlan: s.qtyPlan,
+          qtyActual: totalActual,
+          balance,
+          isCompleted,
+          status: isCompleted ? 'COMPLETED' : totalActual > 0 ? 'IN_PROGRESS' : 'SCHEDULED',
+          pic1: s.pic1 ? { id: s.pic1.id, name: s.pic1.name, nik: s.pic1.nik } : null,
+          pic2: s.pic2 ? { id: s.pic2.id, name: s.pic2.name, nik: s.pic2.nik } : null,
+          pic3: s.pic3 ? { id: s.pic3.id, name: s.pic3.name, nik: s.pic3.nik } : null,
+          notes: s.notes,
+        };
+      });
+
+      const assignedMPsMap = new Map<number, { id: number; name: string }>();
+      schedules.forEach((s) => {
+        if (s.pic1) assignedMPsMap.set(s.pic1.id, { id: s.pic1.id, name: s.pic1.name });
+        if (s.pic2) assignedMPsMap.set(s.pic2.id, { id: s.pic2.id, name: s.pic2.name });
+        if (s.pic3) assignedMPsMap.set(s.pic3.id, { id: s.pic3.id, name: s.pic3.name });
+      });
+
+      return {
+        hasSchedule: true,
+        lineNo: cleanLineNo,
+        date: dateStr,
+        tasks,
+        assignedMPs: Array.from(assignedMPsMap.values()),
+      };
+    } catch (error: any) {
+      this.logger.error(`Error getLineTasksForOperator line ${lineNo} date ${dateStr}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Gagal mengambil daftar tugas line: ' + error.message);
+    }
+  }
 }
