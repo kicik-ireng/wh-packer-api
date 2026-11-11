@@ -179,8 +179,11 @@ model Incoming4r {
   uploadedAt DateTime @default(now())
   createdAt  DateTime @default(now())
 
+  qtyDiterimaFisik Int?
+  hasDiscrepancy   Boolean                  @default(false)
   packingEntries   PackingEntry[]           @relation("Incoming4REntries")
   dandoriSchedules DandoriPackingSchedule[] @relation("Incoming4rDandori")
+  discrepancies    IncomingDiscrepancy[]
 }
 
 model Incoming2r {
@@ -201,8 +204,11 @@ model Incoming2r {
 
   createdAt DateTime @default(now())
 
+  qtyDiterimaFisik Int?
+  hasDiscrepancy   Boolean                  @default(false)
   packingEntries   PackingEntry[]           @relation("Incoming2REntries")
   dandoriSchedules DandoriPackingSchedule[] @relation("Incoming2rDandori")
+  discrepancies    IncomingDiscrepancy[]
 }
 
 model ProductionProblemReport {
@@ -455,3 +461,33 @@ model DandoriPackingSchedule {
   @@index([scheduleDate, lineNo])
 }
 
+
+
+model IncomingDiscrepancy {
+  id               Int         @id @default(autoincrement())
+  date             DateTime    @default(now())
+  prId             String
+  type             String      // "2R" | "4R"
+  supplierName     String?
+  suratJalanNo     String?
+  partNo           String?
+  partName         String?
+  qtySuratJalan    Int
+  qtyDiterimaFisik Int
+  qtySelisih       Int
+  discrepancyType  String      @default("BARANG_KURANG") // "BARANG_KURANG", "BARANG_RUSAK", "SALAH_PART", "LAINNYA"
+  picInspector     String?
+  notes            String?
+  status           String      @default("RECORDED") // "RECORDED", "CLAIM_SUBMITTED", "RESOLVED"
+
+  Incoming2rId     Int?
+  Incoming2r       Incoming2r? @relation(fields: [Incoming2rId], references: [id])
+  Incoming4rId     Int?
+  Incoming4r       Incoming4r? @relation(fields: [Incoming4rId], references: [id])
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([prId, type])
+  @@index([date])
+}

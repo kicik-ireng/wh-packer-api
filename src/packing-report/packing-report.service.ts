@@ -30,47 +30,61 @@ export class PackingReportService {
 
     const tanggal = new Date(tanggalPacking);
 
-    // 🔒 WORKFLOW GUARD: MP packing tidak bisa input packing sebelum Dandori mengisi schedule per line
+    // 🔒 POKAYOKE GUARD: MP packing tidak bisa input packing sebelum Dandori mengisi schedule per line
     const cleanLineNo = lineNo.replace(/[^0-9]/g, '') || lineNo;
     const startOfDay = new Date(tanggal);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(tanggal);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const activeSchedule = await this.prisma.dandoriPackingSchedule.findFirst({
+    const lineSchedules = await this.prisma.dandoriPackingSchedule.findMany({
       where: {
         lineNo: cleanLineNo,
         scheduleDate: { gte: startOfDay, lte: endOfDay },
       },
     });
 
-    if (!activeSchedule) {
+    if (lineSchedules.length === 0) {
       throw new BadRequestException(
-        `Line ${lineNo} belum memiliki Perintah Kerja / Schedule dari Dandori untuk tanggal ${tanggalPacking}. Operator MP belum diizinkan input packing sebelum Dandori mengisi schedule.`,
+        `POKAYOKE: Line ${lineNo} belum memiliki Production Plan / Schedule dari Dandori untuk tanggal ${tanggalPacking}. Operator MP belum diizinkan input packing sebelum Dandori mengalokasikan pekerjaan ke Line ini.`,
       );
     }
 
     for (const d of entries) {
       const qtyActualNew = parseInt(d.qtyActualPacking?.toString() ?? '0');
-      const qtyPlan = parseInt(d.qtyPlan?.toString() ?? '0');
 
-      // hitung total actual existing untuk packingReqNo yang sama
-      const existing = await this.prisma.packingEntry.aggregate({
+      // Validasi 1: PR harus dialokasikan ke Line ini oleh Dandori Planner
+      const matchingSchedule = lineSchedules.find(
+        (s) => s.packingReqNo === d.packingReqNo && s.type === d.type,
+      );
+
+      if (!matchingSchedule) {
+        throw new BadRequestException(
+          `POKAYOKE: PR "${d.packingReqNo}" (${d.type}) tidak dialokasikan untuk Line ${lineNo} pada tanggal ${tanggalPacking}. Silakan koordinasikan dengan Dandori Planner.`,
+        );
+      }
+
+      // Validasi 2: Qty aktual tidak boleh melebihi jatah Qty Plan Line ini
+      const lineExistingEntries = await this.prisma.packingEntry.aggregate({
         _sum: {
           qtyActualPacking: true,
         },
         where: {
+          packingReport: {
+            lineNo: cleanLineNo,
+            tanggalPacking: { gte: startOfDay, lte: endOfDay },
+          },
           packingReqNo: d.packingReqNo,
           type: d.type,
         },
       });
 
-      const qtyActualExisting = existing._sum.qtyActualPacking ?? 0;
-      const totalActual = qtyActualExisting + qtyActualNew;
+      const lineActualExisting = lineExistingEntries._sum.qtyActualPacking ?? 0;
+      const totalLineActual = lineActualExisting + qtyActualNew;
 
-      if (totalActual > qtyPlan) {
+      if (totalLineActual > matchingSchedule.qtyPlan) {
         throw new BadRequestException(
-          `Qty Actual total (${totalActual}) melebihi Qty Plan (${qtyPlan}) untuk ReqNo ${d.packingReqNo}`,
+          `POKAYOKE: Qty Actual (${totalLineActual} pcs) melebihi jatah Qty Plan (${matchingSchedule.qtyPlan} pcs) untuk Line ${lineNo} pada PR ${d.packingReqNo}. (Sudah tercatat: ${lineActualExisting} pcs, Baru: ${qtyActualNew} pcs)`,
         );
       }
     }
@@ -113,12 +127,13 @@ export class PackingReportService {
     }
 
     const totalInputQty = parseInt(qty2R.toString()) + parseInt(qty4R.toString());
+    const primarySchedule = lineSchedules[0];
 
     const entry = await this.prisma.packingReport.create({
       data: {
         tanggalPacking: tanggal,
         lineNo: cleanLineNo,
-        dandoriSchedule: { connect: { id: activeSchedule.id } },
+        dandoriSchedule: primarySchedule ? { connect: { id: primarySchedule.id } } : undefined,
         keterangan,
         qty2R: parseInt(qty2R.toString()),
         qty4R: parseInt(qty4R.toString()),
@@ -131,20 +146,29 @@ export class PackingReportService {
       },
     });
 
-    // Update real-time progress di Dandori Schedule
-    const updatedSchedule = await this.prisma.dandoriPackingSchedule.update({
-      where: { id: activeSchedule.id },
-      data: {
-        qtyActual: { increment: totalInputQty },
-        status: activeSchedule.qtyActual + totalInputQty >= activeSchedule.qtyPlan ? 'COMPLETED' : 'IN_PROGRESS',
-      },
-    });
+    // Update real-time progress di masing-masing Dandori Schedule terkait
+    for (const d of entries) {
+      const targetSched = lineSchedules.find(
+        (s) => s.packingReqNo === d.packingReqNo && s.type === d.type,
+      );
+      if (targetSched) {
+        const addedQty = parseInt(d.qtyActualPacking?.toString() ?? '0');
+        const newActual = (targetSched.qtyActual || 0) + addedQty;
+        await this.prisma.dandoriPackingSchedule.update({
+          where: { id: targetSched.id },
+          data: {
+            qtyActual: newActual,
+            status: newActual >= targetSched.qtyPlan ? 'COMPLETED' : 'IN_PROGRESS',
+          },
+        });
+      }
+    }
 
     await this.updateStock(entry);
 
     return {
       ...entry,
-      dandoriSchedule: updatedSchedule,
+      dandoriSchedule: primarySchedule,
     };
   }
   private async updateStock(entry: {

@@ -26,6 +26,44 @@ export class DandoriScheduleController {
   }
 
   @Public()
+  @Post('plan-split')
+  planSplit(
+    @Body()
+    dto: {
+      prId: string;
+      type: string;
+      scheduleDate: string;
+      allocations: {
+        lineNo: string;
+        shift?: string;
+        qtyPlan: number;
+        pic1Id?: number;
+        pic2Id?: number;
+        pic3Id?: number;
+        notes?: string;
+      }[];
+    },
+  ) {
+    return this.dandoriScheduleService.planSplit(dto);
+  }
+
+  @Public()
+  @Get('available-incoming')
+  getAvailableIncoming() {
+    return this.dandoriScheduleService.getAvailableIncoming();
+  }
+
+  @Public()
+  @Get('line-tasks')
+  getLineTasks(
+    @Query('lineNo') lineNo: string,
+    @Query('date') date: string,
+    @Query('shift') shift?: string,
+  ) {
+    return this.dandoriScheduleService.getLineTasksForOperator(lineNo, date, shift);
+  }
+
+  @Public()
   @Get('dashboard')
   getDashboardLines(@Query('date') date?: string) {
     return this.dandoriScheduleService.getDashboardLines(date);

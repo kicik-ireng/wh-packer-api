@@ -33,6 +33,8 @@ import { MonthlyRekapModule } from './monthly/monthly-rekap.module';
 import { StockOpnameModule } from './stock-opname/stock-opname.module';
 import { StockTransactionModule } from './stock-transaction/stock-transaction.module';
 import { DandoriScheduleModule } from './dandori-schedule/dandori-schedule.module';
+import { DashboardAdminModule } from './dashboard-admin/dashboard-admin.module';
+import { IncomingDiscrepancyModule } from './incoming-discrepancy/incoming-discrepancy.module';
 
 import { APP_GUARD } from '@nestjs/core';
 import { AppAuthGuard } from './auth/guards/app-auth.guard';
@@ -80,6 +82,8 @@ import { AppAuthGuard } from './auth/guards/app-auth.guard';
     StockOpnameModule,
     StockTransactionModule,
     DandoriScheduleModule,
+    DashboardAdminModule,
+    IncomingDiscrepancyModule,
   ],
   controllers: [AppController],
   providers: [
