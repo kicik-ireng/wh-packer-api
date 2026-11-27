@@ -31,6 +31,12 @@ export class StockController {
     return this.stockService.updateRack(+id, body.rack, type);
   }
 
+  @Get('export/all')
+  @Permissions('PACKER.STOCK_READ')
+  async exportAll(@Res() res: Response) {
+    return this.stockService.exportAllStockToExcel(res);
+  }
+
   @Get('export/2r')
   @Permissions('PACKER.STOCK_READ')
   async export2r(@Res() res: Response) {
@@ -75,5 +81,12 @@ export class StockController {
   @UseInterceptors(FileInterceptor('file'))
   async upload4r(@UploadedFile() file: Express.Multer.File) {
     return this.stockService.uploadStock4r(file);
+  }
+
+  @Post('upload/adjust-all')
+  @Permissions('PACKER.STOCK_UPDATE')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAdjustAll(@UploadedFile() file: Express.Multer.File) {
+    return this.stockService.uploadAdjustAllStock(file);
   }
 }

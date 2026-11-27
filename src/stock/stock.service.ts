@@ -505,4 +505,275 @@ export class StockService {
       throw new InternalServerErrorException('Gagal upload stock 4R: ' + error.message);
     }
   }
+  // Ekspor Semua Stock (2R & 4R) Beda Sheet dalam 1 File Excel
+  async exportAllStockToExcel(response: Response) {
+    try {
+      const [data2r, data4r] = await Promise.all([
+        this.findStock2r(),
+        this.findStock4r(),
+      ]);
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'WH-PACKER System';
+      workbook.created = new Date();
+
+      // ==========================================
+      // SHEET 1: Stock 2R
+      // ==========================================
+      const sheet2r = workbook.addWorksheet('Stock 2R');
+      sheet2r.mergeCells('A1:I1');
+      sheet2r.getCell('A1').value = '#2R - STOCK FINISHED GOODS';
+      sheet2r.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FF1E3A8A' } };
+      sheet2r.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+      sheet2r.getRow(1).height = 30;
+
+      const header2r = [
+        'NO',
+        'Customer',
+        'Seg.',
+        'Assy No 16',
+        'OE. No',
+        'ModeL',
+        'EMI Part name',
+        'Total Stock',
+        'Rack',
+      ];
+      sheet2r.addRow(header2r);
+      sheet2r.getRow(2).height = 24;
+
+      data2r.forEach((item, index) => {
+        const part = item.part2r;
+        sheet2r.addRow([
+          index + 1,
+          part.customer || '-',
+          part.segment || '-',
+          part.assyNo16 || '-',
+          part.oeNo || '-',
+          part.model || '-',
+          part.emiPartName || '-',
+          item.totalStock ?? 0,
+          item.rack || '-',
+        ]);
+      });
+
+      this.styleExcelSheet(sheet2r, header2r.length);
+
+      // ==========================================
+      // SHEET 2: Stock 4R
+      // ==========================================
+      const sheet4r = workbook.addWorksheet('Stock 4R');
+      sheet4r.mergeCells('A1:I1');
+      sheet4r.getCell('A1').value = '#4R - STOCK FINISHED GOODS';
+      sheet4r.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FF1E3A8A' } };
+      sheet4r.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+      sheet4r.getRow(1).height = 30;
+
+      const header4r = [
+        'NO',
+        'Cust.',
+        'Seg.',
+        'Assy No 16',
+        'OE. No',
+        'Model',
+        'KPP',
+        'Total Stock',
+        'Rack',
+      ];
+      sheet4r.addRow(header4r);
+      sheet4r.getRow(2).height = 24;
+
+      data4r.forEach((item, index) => {
+        const part = item.part4r;
+        sheet4r.addRow([
+          index + 1,
+          part.customer || '-',
+          part.segment || '-',
+          part.assyNo16 || '-',
+          part.oeNo || '-',
+          part.model || '-',
+          part.kpp || '-',
+          item.totalStock ?? 0,
+          item.rack || '-',
+        ]);
+      });
+
+      this.styleExcelSheet(sheet4r, header4r.length);
+
+      response.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      response.setHeader(
+        'Content-Disposition',
+        'attachment; filename=stock-inventory-2r-4r.xlsx',
+      );
+      await workbook.xlsx.write(response);
+      response.end();
+    } catch (error: any) {
+      this.logger.error(`Gagal ekspor semua stock ke Excel: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Gagal ekspor semua stock ke Excel: ' + error.message);
+    }
+  }
+
+  // Upload dan Adjust Stock (Mendukung 2R & 4R dalam 1 File Excel)
+  async uploadAdjustAllStock(file: Express.Multer.File) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('File Excel tidak ditemukan');
+    }
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(file.buffer as any);
+
+      let updated2r = 0;
+      let updated4r = 0;
+
+      for (const worksheet of workbook.worksheets) {
+        const sheetName = worksheet.name.toLowerCase();
+        const titleCell = worksheet.getCell('A1').value?.toString()?.toLowerCase() || '';
+        const headerCell7 = worksheet.getCell('G2').value?.toString()?.toLowerCase() || '';
+
+        const is2R =
+          sheetName.includes('2r') ||
+          titleCell.includes('#2r') ||
+          headerCell7.includes('emi');
+
+        const is4R =
+          sheetName.includes('4r') ||
+          titleCell.includes('#4r') ||
+          headerCell7.includes('kpp');
+
+        // Jika sheet teridentifikasi sebagai 2R
+        if (is2R) {
+          const rows = worksheet.getRows(3, worksheet.rowCount) || [];
+          for (const row of rows) {
+            const assyNo16 = row.getCell(4).value?.toString()?.trim();
+            const oeNo = row.getCell(5).value?.toString()?.trim();
+            const stockVal = row.getCell(8).value;
+            const totalStock = parseInt(stockVal?.toString() || '0', 10);
+            const rackVal = row.getCell(9).value?.toString()?.trim();
+            const rack = rackVal && rackVal !== '-' ? rackVal : null;
+
+            if (!assyNo16 || !oeNo) continue;
+
+            const part = await this.prisma.partDatabase2r.findFirst({
+              where: { assyNo16, oeNo },
+            });
+
+            if (part) {
+              const existingStock = await this.prisma.stock.findFirst({
+                where: { part2rId: part.id },
+              });
+
+              const qtyBefore = existingStock?.totalStock || 0;
+              const newQty = Math.max(0, isNaN(totalStock) ? 0 : totalStock);
+              const qtyChange = newQty - qtyBefore;
+
+              if (existingStock) {
+                await this.prisma.stock.update({
+                  where: { id: existingStock.id },
+                  data: { totalStock: newQty, ...(rack !== null ? { rack } : {}) },
+                });
+              } else {
+                await this.prisma.stock.create({
+                  data: { part2rId: part.id, totalStock: newQty, rack },
+                });
+              }
+
+              if (qtyChange !== 0) {
+                await this.prisma.stockTransaction.create({
+                  data: {
+                    part2rId: part.id,
+                    part4rId: null,
+                    type: 'ADJUSTMENT',
+                    qtyBefore,
+                    qtyChange,
+                    qtyAfter: newQty,
+                    pic: 'SO Excel Adjustment',
+                    reference: 'SO-ADJUST-2R',
+                    description: `Penyesuaian SO stok 2R (Assy: ${assyNo16}, OE: ${oeNo}) dari ${qtyBefore} ke ${newQty}`,
+                  },
+                });
+              }
+              updated2r++;
+            }
+          }
+        } else if (is4R) {
+          // Sheet teridentifikasi sebagai 4R
+          const rows = worksheet.getRows(3, worksheet.rowCount) || [];
+          for (const row of rows) {
+            const segment = row.getCell(3).value?.toString()?.trim();
+            const assyNo16 = row.getCell(4).value?.toString()?.trim();
+            const oeNo = row.getCell(5).value?.toString()?.trim();
+            const stockVal = row.getCell(8).value;
+            const totalStock = parseInt(stockVal?.toString() || '0', 10);
+            const rackVal = row.getCell(9).value?.toString()?.trim();
+            const rack = rackVal && rackVal !== '-' ? rackVal : null;
+
+            if (!assyNo16 || !oeNo) continue;
+
+            const whereClause = { assyNo16, oeNo };
+            if (segment && segment !== '-') {
+              whereClause['segment'] = segment;
+            }
+
+            const part = await this.prisma.partDatabase4r.findFirst({
+              where: whereClause,
+            });
+
+            if (part) {
+              const existingStock = await this.prisma.stock.findFirst({
+                where: { part4rId: part.id },
+              });
+
+              const qtyBefore = existingStock?.totalStock || 0;
+              const newQty = Math.max(0, isNaN(totalStock) ? 0 : totalStock);
+              const qtyChange = newQty - qtyBefore;
+
+              if (existingStock) {
+                await this.prisma.stock.update({
+                  where: { id: existingStock.id },
+                  data: { totalStock: newQty, ...(rack !== null ? { rack } : {}) },
+                });
+              } else {
+                await this.prisma.stock.create({
+                  data: { part4rId: part.id, totalStock: newQty, rack },
+                });
+              }
+
+              if (qtyChange !== 0) {
+                await this.prisma.stockTransaction.create({
+                  data: {
+                    part2rId: null,
+                    part4rId: part.id,
+                    type: 'ADJUSTMENT',
+                    qtyBefore,
+                    qtyChange,
+                    qtyAfter: newQty,
+                    pic: 'SO Excel Adjustment',
+                    reference: 'SO-ADJUST-4R',
+                    description: `Penyesuaian SO stok 4R (Assy: ${assyNo16}, OE: ${oeNo}) dari ${qtyBefore} ke ${newQty}`,
+                  },
+                });
+              }
+              updated4r++;
+            }
+          }
+        }
+      }
+
+      const totalUpdated = updated2r + updated4r;
+      return {
+        success: true,
+        message: `Berhasil menyesuaikan ${totalUpdated} stok di database (${updated2r} item 2R dan ${updated4r} item 4R).`,
+        count2r: updated2r,
+        count4r: updated4r,
+        totalUpdated,
+      };
+    } catch (error: any) {
+      this.logger.error(`Gagal upload adjust stock: ${error.message}`, error.stack);
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Gagal upload dan adjust stock: ' + error.message);
+    }
+  }
 }

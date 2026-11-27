@@ -78,6 +78,7 @@ export const PACKER_PERMISSIONS = [
   'PACKER.USER_MANAGEMENT',
   'PACKER.ROLE_MANAGEMENT',
   'PACKER.SYSTEM_LOG_READ',
+  'PACKER.MASTER_DATA_EXPORT',
 ] as const;
 
 export type PackerPermission = (typeof PACKER_PERMISSIONS)[number];

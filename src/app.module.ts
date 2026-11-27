@@ -35,6 +35,7 @@ import { StockTransactionModule } from './stock-transaction/stock-transaction.mo
 import { DandoriScheduleModule } from './dandori-schedule/dandori-schedule.module';
 import { DashboardAdminModule } from './dashboard-admin/dashboard-admin.module';
 import { IncomingDiscrepancyModule } from './incoming-discrepancy/incoming-discrepancy.module';
+import { MasterDataModule } from './master-data/master-data.module';
 
 import { APP_GUARD } from '@nestjs/core';
 import { AppAuthGuard } from './auth/guards/app-auth.guard';
@@ -84,6 +85,7 @@ import { AppAuthGuard } from './auth/guards/app-auth.guard';
     DandoriScheduleModule,
     DashboardAdminModule,
     IncomingDiscrepancyModule,
+    MasterDataModule,
   ],
   controllers: [AppController],
   providers: [
